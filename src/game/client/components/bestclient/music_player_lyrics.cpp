@@ -506,8 +506,10 @@ void CMusicPlayerLyrics::ProcessRequest()
 
 	// chainsaw: lrclib first, then NetEase (search, then the lyric of the best match)
 	const ESource Source = m_Source;
-	const int StatusCode = pFinished->StatusCode();
-	const bool Unreachable = pFinished->State() != EHttpState::DONE || StatusCode == 0 || (StatusCode != 404 && (StatusCode < 200 || StatusCode >= 300));
+	// a request that failed (no connection, site blocked) has no status code: asking for it asserts, so only when DONE
+	const bool Done = pFinished->State() == EHttpState::DONE;
+	const int StatusCode = Done ? pFinished->StatusCode() : 0;
+	const bool Unreachable = !Done || StatusCode == 0 || (StatusCode != 404 && (StatusCode < 200 || StatusCode >= 300));
 	if(Source == ESource::Lrclib && Unreachable)
 		m_LrclibOffline = true;
 
