@@ -4,9 +4,11 @@
 #include "bestclient.h"
 #include "chainsaw_gui_bg.h"
 #include "chainsaw_perf.h"
+#include "cc_image_wic.h"
 #include "fx/cc_fx_common.h"
 #include "media_decoder.h"
 
+#include <base/log.h>
 #include <base/math.h>
 #include <base/mem.h>
 #include <base/str.h>
@@ -473,10 +475,11 @@ void CChainsawGui::BuildItems()
 	};
 	SFeature Back;
 	Back.m_pName = "Картинка за меню";
-	Back.m_pDesc = "Пейзаж или своя картинка за окном меню. Свои картинки (png, jpg, webp) клади в папку chainsaw/menu_backgrounds.";
+	Back.m_pDesc = "Пейзаж или своя картинка за окном меню. Свои картинки и фото (jpg, png, webp, gif, bmp, heic, avif — любые, что открывает Windows) клади в папку chainsaw/menu_backgrounds.";
 	Back.m_vOpts = {
 		MakeSpecial(OPT_BG_PRESETS, "Готовые"),
 		MakeSpecial(OPT_BG_FILES, "Свои картинки"),
+		MakeSpecial(OPT_BG_STATUS, "").ShowIf(&m_BgFailed),
 		CC_SLIDER(BcGuiBgDim, "Затемнение").Desc("Насколько цвета меню закрывают картинку."),
 		CC_SLIDER(BcGuiBgBlur, "Размытие"),
 		MakeButton("Открыть папку", ACT_OPEN_BG_FOLDER, false),
@@ -1136,7 +1139,8 @@ int CChainsawGui::BackgroundListCallback(const char *pName, int IsDir, int Stora
 	CChainsawGui *pSelf = static_cast<CChainsawGui *>(pUser);
 	if(IsDir || pName[0] == '.')
 		return 0;
-	const char *apExt[] = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"};
+	// the format is found from the bytes when the picture is opened, the name only has to look like a picture
+	const char *apExt[] = {".png", ".jpg", ".jpeg", ".jpe", ".jfif", ".webp", ".bmp", ".dib", ".gif", ".tif", ".tiff", ".ico", ".heic", ".heif", ".avif", ".jxr", ".wdp", ".hdp"};
 	for(const char *pExt : apExt)
 		if(str_endswith_nocase(pName, pExt))
 		{
@@ -1198,13 +1202,29 @@ void CChainsawGui::UpdateBackground()
 	std::vector<uint8_t> vPixels;
 	int W = 0, H = 0;
 	bool Ok = false;
+	m_BgFailed = 0;
+	m_aBgError[0] = '\0';
 	if(g_Config.m_BcGuiBgFile[0] != '\0')
 	{
 		char aPath[IO_MAX_PATH_LENGTH];
 		str_format(aPath, sizeof(aPath), "%s/%s", BG_FOLDER, g_Config.m_BcGuiBgFile);
 		void *pData = nullptr;
 		unsigned DataSize = 0;
-		if(Storage()->ReadFile(aPath, IStorage::TYPE_ALL, &pData, &DataSize))
+		char aWhy[128] = "";
+		if(!Storage()->ReadFile(aPath, IStorage::TYPE_ALL, &pData, &DataSize))
+		{
+			m_BgFailed = 1;
+			str_format(m_aBgError, sizeof(m_aBgError), "Не нашёл «%s» в папке chainsaw/menu_backgrounds. Нажми «Обновить список».", g_Config.m_BcGuiBgFile);
+		}
+		// any picture Windows can open, whatever its name says (a WebP saved as .png too); big photos are scaled down
+		// while decoding, phone photos are turned the right way
+		else if(CcImage::DecodeWic(pData, DataSize, 1280, 720, vPixels, W, H, aWhy, sizeof(aWhy)))
+		{
+			CcMenuBg::Fit(vPixels, W, H, 1280, 720);
+			Ok = true;
+			free(pData);
+		}
+		else
 		{
 			CImageInfo Image;
 			if(MediaDecoder::DecodeImageToRgba(Graphics(), static_cast<unsigned char *>(pData), DataSize, aPath, Image) && Image.m_Width > 0 && Image.m_Height > 0)
@@ -1225,6 +1245,12 @@ void CChainsawGui::UpdateBackground()
 					}
 				CcMenuBg::Fit(vPixels, W, H, 1280, 720);
 				Ok = true;
+			}
+			else
+			{
+				m_BgFailed = 1;
+				str_format(m_aBgError, sizeof(m_aBgError), "Не получилось открыть «%s»: Windows не знает этот формат. Открой картинку в Paint и сохрани как JPG или PNG.", g_Config.m_BcGuiBgFile);
+				log_error("chainsaw", "menu background '%s' could not be decoded: %s", aPath, aWhy);
 			}
 			free(pData);
 		}
@@ -1875,6 +1901,7 @@ float CChainsawGui::OptHeight(SOpt &Opt, float Width)
 	case OPT_FONT: return ROW_H * K;
 	case OPT_RENDERER: return 34.0f * K;
 	case OPT_PERF_STATUS: return 40.0f * K;
+	case OPT_BG_STATUS: return 40.0f * K;
 	case OPT_PRESETS: return ROW_H * K + WrapHeight(s_vLookNames, F(10.5f), Width - 8.0f * K, nullptr);
 	case OPT_BG_PRESETS:
 	{
@@ -2163,6 +2190,16 @@ void CChainsawGui::RenderOpt(SFeature &Feature, SOpt &Opt, CUIRect Row)
 		const float Size = F(9.5f);
 		const SCachedText &T = Text(pText, Size, Box.w - 16.0f * K);
 		TextAt(Box.x + 8.0f * K, Box.y + (Box.h - T.m_H) * 0.5f, pText, Size, Ok ? MUTED : INK, Box.w - 16.0f * K);
+		return;
+	}
+	if(Opt.m_Type == OPT_BG_STATUS)
+	{
+		CUIRect Box;
+		Row.HMargin(2.0f * K, &Box);
+		Rect(Box, ColorRGBA(1.0f, 0.3f, 0.25f, 0.14f), 6.0f * K);
+		const float Size = F(9.5f);
+		const SCachedText &T = Text(m_aBgError, Size, Box.w - 16.0f * K);
+		TextAt(Box.x + 8.0f * K, Box.y + (Box.h - T.m_H) * 0.5f, m_aBgError, Size, INK, Box.w - 16.0f * K);
 		return;
 	}
 	if(Opt.m_Type == OPT_PERF_STATUS)
