@@ -2,7 +2,7 @@
 
 Клиент для [DDNet](https://ddnet.org) — изменённая версия [BestClient](https://bestclient.fun)
 (который сам основан на [TClient](https://github.com/TaterClient/TClient) и DDNet).
-Только визуал и удобство: ботов в этой версии нет, обновлялка BestClient выключена.
+Только визуал и удобство
 
 *A DDNet client: a modified version of BestClient (based on TClient and DDNet), visuals only.*
 
