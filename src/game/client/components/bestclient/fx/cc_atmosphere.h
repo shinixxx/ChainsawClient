@@ -65,7 +65,9 @@ private:
 	void DrawWeatherNormal(const CcFx::CAtlas &Atlas);
 	void DrawWeatherAdditive(const CcFx::CAtlas &Atlas);
 	static bool SolidTile(void *pUser, int Tx, int Ty);
-	void MakeWorldly(SPart &Part, bool Physics);
+	void MakeWorldly(SPart &Part, bool Physics, bool Snow, bool Anywhere);
+	bool InWorldBox(vec2 Pos) const;
+	static float WorldFade(const SPart &Part);
 	void StopSounds();
 
 	CcFx::CView m_View;
@@ -86,6 +88,7 @@ private:
 	std::vector<SStar> m_vStars;
 	std::vector<SBolt> m_vBolts;
 	CcWeather::CWorld m_Weather; // puddles, snow piles, splashes
+	float m_CullTimer = 0.0f;
 
 	float m_StarTimer = 1.0f;
 	float m_BoltTimer = 5.0f;
