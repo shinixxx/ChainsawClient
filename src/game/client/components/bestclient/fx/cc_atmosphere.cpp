@@ -138,7 +138,7 @@ void CCcAtmosphere::Spawn(SPart &P, int Kind, bool Anywhere)
 		P.m_Vel = vec2(0.0f, random_float(1300.0f, 1800.0f));
 		if(!Anywhere)
 			P.m_Pos.y = m_View.m_Y0 - random_float(0.0f, H * 0.2f);
-		MakeWorldly(P, g_Config.m_BcAtmRainPhysics != 0);
+		MakeWorldly(P, g_Config.m_BcAtmRainPhysics != 0, false, Anywhere);
 		break;
 	case KIND_SNOW:
 		P.m_Z = random_float(0.3f, 1.0f);
@@ -146,7 +146,7 @@ void CCcAtmosphere::Spawn(SPart &P, int Kind, bool Anywhere)
 		P.m_Vel = vec2(0.0f, random_float(40.0f, 90.0f));
 		if(!Anywhere)
 			P.m_Pos.y = m_View.m_Y0 - random_float(0.0f, H * 0.1f);
-		MakeWorldly(P, g_Config.m_BcAtmSnowPhysics != 0);
+		MakeWorldly(P, g_Config.m_BcAtmSnowPhysics != 0, true, Anywhere);
 		break;
 	case KIND_FLY:
 		P.m_Z = random_float(0.55f, 1.0f);
@@ -185,20 +185,41 @@ void CCcAtmosphere::Spawn(SPart &P, int Kind, bool Anywhere)
 	}
 }
 
-// physical rain / snow: most of the drops fly in the world itself and hit the blocks; not where a block hangs above
-// (caves, roofs) - there only the far ones fall, as before
-void CCcAtmosphere::MakeWorldly(SPart &P, bool Physics)
+// physical rain / snow: every drop flies in the world itself (no far layer that would pass over the blocks). It appears
+// at a free spot anywhere around the view and lives a short time, so the rain is even everywhere, also inside the closed
+// rooms of DDNet maps; it ends on a block (splash, puddle, snow pile), at the end of its life or out of the view.
+static constexpr float WORLD_MARGIN = 120.0f;
+
+bool CCcAtmosphere::InWorldBox(vec2 Pos) const
 {
-	P.m_World = false;
-	if(!Physics || random_float(0.0f, 1.0f) >= 0.6f)
+	return Pos.x > m_View.m_X0 - WORLD_MARGIN * 1.5f && Pos.x < m_View.m_X1 + WORLD_MARGIN * 1.5f &&
+	       Pos.y > m_View.m_Y0 - WORLD_MARGIN * 1.5f && Pos.y < m_View.m_Y1 + WORLD_MARGIN * 1.5f;
+}
+
+void CCcAtmosphere::MakeWorldly(SPart &P, bool Physics, bool Snow, bool Anywhere)
+{
+	P.m_World = Physics;
+	if(!Physics)
 		return;
-	if(m_Weather.Covered(P.m_Pos) || m_Weather.SolidAt(P.m_Pos))
-	{
-		P.m_Z = random_float(0.35f, 0.8f);
-		return;
-	}
 	P.m_Z = 1.0f;
-	P.m_World = true;
+	for(int Try = 0; Try < 8; Try++)
+	{
+		P.m_Pos = vec2(random_float(m_View.m_X0 - WORLD_MARGIN, m_View.m_X1 + WORLD_MARGIN), random_float(m_View.m_Y0 - WORLD_MARGIN, m_View.m_Y1 + WORLD_MARGIN));
+		if(!m_Weather.SolidAt(P.m_Pos))
+			break;
+	}
+	P.m_LifeSpan = Snow ? random_float(4.0f, 8.0f) : random_float(0.35f, 0.75f);
+	P.m_Life = Anywhere ? random_float(0.0f, P.m_LifeSpan) : 0.0f;
+}
+
+// world drops appear and vanish softly instead of popping
+float CCcAtmosphere::WorldFade(const SPart &P)
+{
+	if(!P.m_World || P.m_LifeSpan <= 0.0f)
+		return 1.0f;
+	const float In = std::min(1.0f, P.m_Life / 0.06f);
+	const float Out = std::min(1.0f, (P.m_LifeSpan - P.m_Life) / (P.m_LifeSpan * 0.25f));
+	return std::clamp(std::min(In, Out), 0.0f, 1.0f);
 }
 
 bool CCcAtmosphere::SolidTile(void *pUser, int Tx, int Ty)
@@ -293,12 +314,19 @@ void CCcAtmosphere::Update(float Dt, vec2 CameraDelta)
 		const float Splash = g_Config.m_BcAtmRainSplash / 100.0f, Puddles = g_Config.m_BcAtmRainPuddles / 100.0f;
 		for(SPart &P : m_vRain)
 		{
+			if(P.m_World != Physics) // the switch changed: this drop comes back as the other kind
+			{
+				Spawn(P, KIND_RAIN, false);
+				continue;
+			}
 			Parallax(P);
 			const vec2 Old = P.m_Pos;
 			P.m_Pos += vec2(m_WindX * 450.0f, P.m_Vel.y) * P.m_Z * Dt;
-			if(P.m_World && Physics && m_Weather.RainStep(Old, P.m_Pos, Splash, Puddles, m_WindX))
+			if(P.m_World)
 			{
-				Spawn(P, KIND_RAIN, false);
+				P.m_Life += Dt;
+				if(m_Weather.RainStep(Old, P.m_Pos, Splash, Puddles, m_WindX) || P.m_Life >= P.m_LifeSpan || !InWorldBox(P.m_Pos))
+					Spawn(P, KIND_RAIN, false);
 				continue;
 			}
 			if(P.m_Pos.y > m_View.m_Y1 + 60.0f)
@@ -332,13 +360,20 @@ void CCcAtmosphere::Update(float Dt, vec2 CameraDelta)
 		const float PileMax = 8.0f * g_Config.m_BcAtmSnowPile / 100.0f;
 		for(SPart &P : m_vSnow)
 		{
+			if(P.m_World != Physics) // the switch changed: this flake comes back as the other kind
+			{
+				Spawn(P, KIND_SNOW, false);
+				continue;
+			}
 			Parallax(P);
 			const float Sway = std::sin(m_Time * 1.3f + P.m_Phase) * 22.0f;
 			const vec2 Old = P.m_Pos;
 			P.m_Pos += vec2(m_WindX * 140.0f + Sway, P.m_Vel.y * Speed) * P.m_Z * Dt;
-			if(P.m_World && Physics && m_Weather.SnowStep(Old, P.m_Pos, 2.4f, PileMax) != CcWeather::FLAKE_FLYING)
+			if(P.m_World)
 			{
-				Spawn(P, KIND_SNOW, false);
+				P.m_Life += Dt;
+				if(m_Weather.SnowStep(Old, P.m_Pos, 2.4f, PileMax) != CcWeather::FLAKE_FLYING || P.m_Life >= P.m_LifeSpan || !InWorldBox(P.m_Pos))
+					Spawn(P, KIND_SNOW, false);
 				continue;
 			}
 			if(P.m_Pos.y > m_View.m_Y1 + 20.0f)
@@ -479,6 +514,12 @@ void CCcAtmosphere::Update(float Dt, vec2 CameraDelta)
 	}
 
 	// puddles, snow piles and splashes: droplets fly, puddles dry, snow settles and melts
+	m_CullTimer -= Dt;
+	if(m_CullTimer <= 0.0f)
+	{
+		m_CullTimer = 0.5f;
+		m_Weather.Cull(m_View.m_X0 - W, m_View.m_Y0 - H, m_View.m_X1 + W, m_View.m_Y1 + H);
+	}
 	m_Weather.m_DropletBudget = m_Quality;
 	m_Weather.Update(Dt, g_Config.m_BcAtmStorm && g_Config.m_BcAtmRainPhysics, g_Config.m_BcAtmSnow && g_Config.m_BcAtmSnowPhysics, g_Config.m_BcAtmSnowMelt / 100.0f * 0.1f);
 
@@ -540,10 +581,14 @@ void CCcAtmosphere::Draw()
 			const float Opacity = g_Config.m_BcAtmRainOpacity / 100.0f;
 			const float LenScale = g_Config.m_BcAtmRainLength / 100.0f;
 			const float Angle = std::atan2(1.0f, m_WindX * 450.0f / 1500.0f);
+			const vec2 Fall = normalize(vec2(m_WindX * 450.0f / 1500.0f, 1.0f));
 			for(const SPart &P : m_vRain)
 			{
-				const ColorRGBA c(0.72f, 0.8f, 0.95f, Opacity * (0.35f + 0.65f * P.m_Z));
-				CcFx::QuadRotated(Graphics(), P.m_Pos, P.m_Size * LenScale * P.m_Z * Px * 1.6f, 2.4f * P.m_Z * Px, Angle, Atlas.m_Glow, c);
+				const ColorRGBA c(0.72f, 0.8f, 0.95f, Opacity * (0.35f + 0.65f * P.m_Z) * WorldFade(P));
+				const float Len = P.m_Size * LenScale * P.m_Z * Px * 1.6f;
+				// a drop in the world: the streak trails behind its head, so it does not reach into the block it falls on
+				const vec2 Center = P.m_World ? P.m_Pos - Fall * (Len * 0.5f) : P.m_Pos;
+				CcFx::QuadRotated(Graphics(), Center, Len, 2.4f * P.m_Z * Px, Angle, Atlas.m_Glow, c);
 			}
 		}
 		if(!m_vLeaves.empty())
@@ -570,8 +615,9 @@ void CCcAtmosphere::Draw()
 		for(const SPart &P : m_vSnow)
 		{
 			const float s = P.m_Size * P.m_Z * Size * Px;
-			CcFx::QuadAxis(Graphics(), P.m_Pos, s * 3.0f, s * 3.0f, Atlas.m_Glow, Snow.WithAlpha(0.35f * P.m_Z));
-			CcFx::QuadAxis(Graphics(), P.m_Pos, s * 1.2f, s * 1.2f, Atlas.m_Glow, Snow.WithAlpha(0.8f * P.m_Z));
+			const float Fade = WorldFade(P);
+			CcFx::QuadAxis(Graphics(), P.m_Pos, s * 3.0f, s * 3.0f, Atlas.m_Glow, Snow.WithAlpha(0.35f * P.m_Z * Fade));
+			CcFx::QuadAxis(Graphics(), P.m_Pos, s * 1.2f, s * 1.2f, Atlas.m_Glow, Snow.WithAlpha(0.8f * P.m_Z * Fade));
 		}
 	}
 	if(!m_vFlies.empty())

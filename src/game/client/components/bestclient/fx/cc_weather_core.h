@@ -19,10 +19,10 @@ namespace CcWeather
 {
 constexpr float TILE = 32.0f;
 constexpr int PILE_SAMPLES = 7; // heights across one block top, 32 / 6 units apart
-constexpr int MAX_PUDDLES = 192;
-constexpr int MAX_PILES = 320;
-constexpr int MAX_DROPLETS = 700;
-constexpr int MAX_CROWNS = 160;
+constexpr int MAX_PUDDLES = 256;
+constexpr int MAX_PILES = 384;
+constexpr int MAX_DROPLETS = 220;
+constexpr int MAX_CROWNS = 60;
 
 struct SDroplet
 {
@@ -211,21 +211,14 @@ public:
 
 		// puddles dry, quicker without rain
 		const float Dry = (Raining ? 0.006f : 0.04f) * Dt;
-		bool Removed = false;
 		for(size_t i = 0; i < m_vPuddles.size();)
 		{
 			m_vPuddles[i].m_Level -= Dry;
 			if(m_vPuddles[i].m_Level <= 0.0f)
-			{
-				m_vPuddles[i] = m_vPuddles.back();
-				m_vPuddles.pop_back();
-				Removed = true;
-				continue;
-			}
-			i++;
+				ErasePuddle(i);
+			else
+				i++;
 		}
-		if(Removed)
-			RebuildPuddleIndex();
 
 		// snow slides to a gentle slope, falls off open edges, melts
 		const float MeltNow = (Snowing ? Melt : std::max(Melt, 0.6f)) * Dt;
@@ -267,23 +260,37 @@ public:
 				h[i] = std::max(0.0f, h[i] - MeltNow);
 		}
 		// melted piles go after the pass, the index is used inside it
-		Removed = false;
 		for(size_t p = 0; p < m_vPiles.size();)
 		{
 			float Total = 0.0f;
 			for(float h : m_vPiles[p].m_aH)
 				Total += h;
 			if(Total < 0.05f)
-			{
-				m_vPiles[p] = m_vPiles.back();
-				m_vPiles.pop_back();
-				Removed = true;
-				continue;
-			}
-			p++;
+				ErasePile(p);
+			else
+				p++;
 		}
-		if(Removed)
-			RebuildPileIndex();
+	}
+
+	// forget puddles and snow far away from the view (out of sight anyway), so the pools never fill up
+	void Cull(float X0, float Y0, float X1, float Y1)
+	{
+		for(size_t i = 0; i < m_vPuddles.size();)
+		{
+			const float x = m_vPuddles[i].m_Tx * TILE, y = m_vPuddles[i].m_Ty * TILE;
+			if(x < X0 || x > X1 || y < Y0 || y > Y1)
+				ErasePuddle(i);
+			else
+				i++;
+		}
+		for(size_t i = 0; i < m_vPiles.size();)
+		{
+			const float x = m_vPiles[i].m_Tx * TILE, y = m_vPiles[i].m_Ty * TILE;
+			if(x < X0 || x > X1 || y < Y0 || y > Y1)
+				ErasePile(i);
+			else
+				i++;
+		}
 	}
 
 	std::vector<SDroplet> m_vDroplets;
@@ -326,7 +333,9 @@ private:
 			AddCrown(vec2(x, Top - 0.8f), Rand(7.0f, 11.0f), true);
 		else
 			AddCrown(vec2(x, Top - 1.0f), Rand(4.0f, 6.5f), false);
-		const int Num = (int)(Rand(1.6f, 3.6f) * SplashAmount * (InWater ? 0.7f : 1.0f));
+		// fewer droplets when many are already flying (heavy rain on a block map)
+		const float Busy = m_vDroplets.size() > MAX_DROPLETS / 2 ? 0.5f : 1.0f;
+		const int Num = (int)(Rand(0.8f, 2.4f) * SplashAmount * Busy * (InWater ? 0.7f : 1.0f));
 		for(int i = 0; i < Num; i++)
 			AddDroplet(vec2(x + Rand(-1.5f, 1.5f), Top - 1.5f), vec2(Rand(-120.0f, 120.0f) + WindX * 90.0f, -Rand(110.0f, 260.0f)), Rand(1.1f, 2.0f));
 		if(PuddleAmount > 0.0f)
@@ -365,9 +374,7 @@ private:
 				for(size_t i = 1; i < m_vPuddles.size(); i++)
 					if(m_vPuddles[i].m_Level < m_vPuddles[Driest].m_Level)
 						Driest = i;
-				m_vPuddles[Driest] = m_vPuddles.back();
-				m_vPuddles.pop_back();
-				RebuildPuddleIndex();
+				ErasePuddle(Driest);
 			}
 			SPuddle Puddle;
 			Puddle.m_Tx = Tx;
@@ -422,18 +429,27 @@ private:
 		h[i0 + 1] = std::min(Max * Hill(Tx * TILE + (i0 + 1) * Step), h[i0 + 1] + Amount * f);
 	}
 
-	void RebuildPuddleIndex()
+	// remove in O(1): the last one moves into the hole, only its index entry changes
+	void ErasePuddle(size_t i)
 	{
-		m_PuddleIndex.clear();
-		for(int i = 0; i < (int)m_vPuddles.size(); i++)
-			m_PuddleIndex[Key(m_vPuddles[i].m_Tx, m_vPuddles[i].m_Ty)] = i;
+		m_PuddleIndex.erase(Key(m_vPuddles[i].m_Tx, m_vPuddles[i].m_Ty));
+		if(i + 1 != m_vPuddles.size())
+		{
+			m_vPuddles[i] = m_vPuddles.back();
+			m_PuddleIndex[Key(m_vPuddles[i].m_Tx, m_vPuddles[i].m_Ty)] = (int)i;
+		}
+		m_vPuddles.pop_back();
 	}
 
-	void RebuildPileIndex()
+	void ErasePile(size_t i)
 	{
-		m_PileIndex.clear();
-		for(int i = 0; i < (int)m_vPiles.size(); i++)
-			m_PileIndex[Key(m_vPiles[i].m_Tx, m_vPiles[i].m_Ty)] = i;
+		m_PileIndex.erase(Key(m_vPiles[i].m_Tx, m_vPiles[i].m_Ty));
+		if(i + 1 != m_vPiles.size())
+		{
+			m_vPiles[i] = m_vPiles.back();
+			m_PileIndex[Key(m_vPiles[i].m_Tx, m_vPiles[i].m_Ty)] = (int)i;
+		}
+		m_vPiles.pop_back();
 	}
 
 	FSolid m_pfnSolid = nullptr;
