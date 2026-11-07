@@ -523,6 +523,9 @@ void CCommandProcessorFragment_OpenGL3_3::Cmd_Shutdown(const SCommand_Shutdown *
 	glDeleteVertexArrays(MAX_STREAM_BUFFER_COUNT, m_aPrimitiveDrawVertexId);
 	glDeleteBuffers(1, &m_PrimitiveDrawBufferIdTex3D);
 	glDeleteVertexArrays(1, &m_PrimitiveDrawVertexIdTex3D);
+	// bestclient
+	DestroyMotionBlurTexture();
+	// bestclient
 
 	for(int i = 0; i < (int)m_vTextures.size(); ++i)
 	{
@@ -716,6 +719,11 @@ void CCommandProcessorFragment_OpenGL3_3::Cmd_Texture_Create(const CCommandBuffe
 void CCommandProcessorFragment_OpenGL3_3::Cmd_TextTexture_Update(const CCommandBuffer::SCommand_TextTexture_Update *pCommand)
 {
 	TextureUpdate(pCommand->m_Slot, pCommand->m_X, pCommand->m_Y, pCommand->m_Width, pCommand->m_Height, GL_RED, pCommand->m_pData);
+}
+
+void CCommandProcessorFragment_OpenGL3_3::Cmd_Texture_Update(const CCommandBuffer::SCommand_Texture_Update *pCommand)
+{
+	TextureUpdate(pCommand->m_Slot, pCommand->m_X, pCommand->m_Y, pCommand->m_Width, pCommand->m_Height, GL_RGBA, pCommand->m_pData);
 }
 
 void CCommandProcessorFragment_OpenGL3_3::Cmd_TextTextures_Destroy(const CCommandBuffer::SCommand_TextTextures_Destroy *pCommand)
@@ -1449,5 +1457,10 @@ void CCommandProcessorFragment_OpenGL3_3::Cmd_RenderQuadContainerAsSpriteMultipl
 		DrawCount -= RSPCount;
 	}
 }
+
+// bestclient
+#include <game/client/components/bestclient/motion_blur_opengl.inl>
+#include "bc_postfx_opengl3.inl" // chainsaw
+// bestclient
 
 #endif

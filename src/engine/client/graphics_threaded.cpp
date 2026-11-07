@@ -2,6 +2,7 @@
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 
 #include "graphics_threaded.h"
+#include "bc_postfx_cmd.h" // chainsaw
 
 #include <base/dbg.h>
 #include <base/detect.h>
@@ -330,8 +331,10 @@ IGraphics::CTextureHandle CGraphics_Threaded::LoadSpriteTexture(const CImageInfo
 	// check for invisible texture, maybe due to outdated game assets
 	if(FallbackImageInfo.has_value() && IsImageSubFullyTransparent(FromImageInfo, x, y, w, h))
 	{
-		log_warn("graphics", "Asset '%s' appears to be invisible, falling back to default", pSprite->m_pName);
-		return LoadSpriteTexture(FallbackImageInfo.value(), std::nullopt, pSprite);
+		// TClient: Do not fall back to default: players intentionally use transparent custom assets (e.g. hooks/cursors).
+		log_warn("graphics", "Asset '%s' appears to be invisible", pSprite->m_pName);
+		// log_warn("graphics", "Asset '%s' appears to be invisible, falling back to default", pSprite->m_pName);
+		// return LoadSpriteTexture(FallbackImageInfo.value(), std::nullopt, pSprite);
 	}
 
 	CImageInfo SpriteInfo;
@@ -525,6 +528,34 @@ bool CGraphics_Threaded::UpdateTextTexture(CTextureHandle TextureId, int x, int 
 	else
 	{
 		const size_t MemSize = Width * Height;
+		uint8_t *pTmpData = static_cast<uint8_t *>(malloc(MemSize));
+		mem_copy(pTmpData, pData, MemSize);
+		Cmd.m_pData = pTmpData;
+	}
+	AddCmd(Cmd);
+
+	return true;
+}
+
+bool CGraphics_Threaded::UpdateTextureRaw(CTextureHandle TextureId, int x, int y, size_t Width, size_t Height, uint8_t *pData, bool IsMovedPointer)
+{
+	if(!TextureId.IsValid() || Width == 0 || Height == 0 || pData == nullptr)
+		return false;
+
+	CCommandBuffer::SCommand_Texture_Update Cmd;
+	Cmd.m_Slot = TextureId.Id();
+	Cmd.m_X = x;
+	Cmd.m_Y = y;
+	Cmd.m_Width = Width;
+	Cmd.m_Height = Height;
+
+	if(IsMovedPointer)
+	{
+		Cmd.m_pData = pData;
+	}
+	else
+	{
+		const size_t MemSize = Width * Height * 4;
 		uint8_t *pTmpData = static_cast<uint8_t *>(malloc(MemSize));
 		mem_copy(pTmpData, pData, MemSize);
 		Cmd.m_pData = pTmpData;
@@ -2205,7 +2236,7 @@ int CGraphics_Threaded::IssueInit()
 		Flags |= IGraphicsBackend::INITFLAG_VSYNC;
 	}
 
-	const int Result = m_pBackend->Init("DDNet Client", &g_Config.m_GfxScreen, &g_Config.m_GfxScreenWidth, &g_Config.m_GfxScreenHeight, &g_Config.m_GfxScreenRefreshRate, &g_Config.m_GfxFsaaSamples, Flags, &m_DesktopSize.x, &m_DesktopSize.y, &m_ScreenWidth, &m_ScreenHeight, m_pStorage);
+	const int Result = m_pBackend->Init("BestClient", &g_Config.m_GfxScreen, &g_Config.m_GfxScreenWidth, &g_Config.m_GfxScreenHeight, &g_Config.m_GfxScreenRefreshRate, &g_Config.m_GfxFsaaSamples, Flags, &m_DesktopSize.x, &m_DesktopSize.y, &m_ScreenWidth, &m_ScreenHeight, m_pStorage); // bestclient
 	m_DrawableWidth = m_ScreenWidth;
 	m_DrawableHeight = m_ScreenHeight;
 	AddBackEndWarningIfExists();
@@ -2224,6 +2255,82 @@ int CGraphics_Threaded::IssueInit()
 	return Result;
 }
 
+// TClient
+bool g_GraphicsForcedAspect = true;
+
+// bestclient
+static int s_GraphicsCustomAspect = -1;
+
+static void ResolveCustomAspect(bool ApplyCustomAspect, int &CustomAspect, float &CustomAspectF)
+{
+	CustomAspect = 0;
+	CustomAspectF = 0.0f;
+	if(!ApplyCustomAspect)
+		return;
+	const int AspectMode = g_Config.m_BcCustomAspectRatioMode >= 0 ? g_Config.m_BcCustomAspectRatioMode : (g_Config.m_BcCustomAspectRatio > 0 ? 1 : 0);
+	if(AspectMode <= 0 || g_Config.m_BcCustomAspectRatio < 100)
+		return;
+	CustomAspect = g_Config.m_BcCustomAspectRatio;
+	if(AspectMode == 2 && g_Config.m_BcCustomAspectRatioNum > 0 && g_Config.m_BcCustomAspectRatioDen > 0)
+		CustomAspectF = (float)g_Config.m_BcCustomAspectRatioNum / (float)g_Config.m_BcCustomAspectRatioDen;
+	else
+		CustomAspectF = CustomAspect / 100.0f;
+}
+
+void CGraphics_Threaded::SetScreenAspectOverrideEnabled(bool Enabled)
+{
+	m_ScreenAspectOverrideEnabled = Enabled;
+}
+
+void CGraphics_Threaded::PushPreviewViewport(int X, int Y, int W, int H)
+{
+	dbg_assert(!m_PreviewViewportPushed, "preview viewport already pushed");
+	dbg_assert(W > 0 && H > 0, "invalid preview viewport");
+	m_PreviewViewportPushed = true;
+	m_PreviewSavedAspectOverride = m_ScreenAspectOverride;
+	m_PreviewSavedAspectOverrideEnabled = m_ScreenAspectOverrideEnabled;
+	m_ScreenAspectOverride = (float)W / (float)H;
+	m_ScreenAspectOverrideEnabled = true;
+	UpdateViewport(X, Y, W, H, false);
+}
+
+void CGraphics_Threaded::PopPreviewViewport()
+{
+	dbg_assert(m_PreviewViewportPushed, "preview viewport not pushed");
+	m_PreviewViewportPushed = false;
+	m_ScreenAspectOverride = m_PreviewSavedAspectOverride;
+	m_ScreenAspectOverrideEnabled = m_PreviewSavedAspectOverrideEnabled;
+	UpdateViewport(m_ViewportX, 0, m_ScreenWidth, m_ScreenHeight, false);
+}
+// bestclient
+
+void CGraphics_Threaded::SetForcedAspect(bool Force, bool ApplyCustomAspect)
+{
+	if(!IsBackendInitialized())
+		return;
+	// bestclient
+	int CustomAspect;
+	float CustomAspectF;
+	ResolveCustomAspect(ApplyCustomAspect, CustomAspect, CustomAspectF);
+	if(g_GraphicsForcedAspect == Force && s_GraphicsCustomAspect == CustomAspect && m_ScreenAspectOverride == CustomAspectF)
+		return;
+
+	g_GraphicsForcedAspect = Force;
+	s_GraphicsCustomAspect = CustomAspect;
+	m_ScreenAspectOverride = CustomAspectF;
+	// bestclient
+	m_pBackend->GetViewportSize(m_ScreenWidth, m_ScreenHeight);
+	AdjustViewport(false);
+	UpdateViewport(m_ViewportX, 0, m_ScreenWidth, m_ScreenHeight, false);
+
+	// kick the command buffer and wait
+	KickCommandBuffer();
+	WaitForIdle();
+
+	for(auto &ResizeListener : m_vResizeListeners)
+		ResizeListener();
+}
+
 void CGraphics_Threaded::AdjustViewport(bool SendViewportChangeToBackend)
 {
 	// exclude the area covered by the display cutout, as nothing rendered there is visible
@@ -2234,7 +2341,13 @@ void CGraphics_Threaded::AdjustViewport(bool SendViewportChangeToBackend)
 
 	// adjust the viewport to only allow certain aspect ratios
 	// keep this in sync with backend_vulkan GetSwapImageSize's check
-	if(m_ScreenHeight > 4 * m_ScreenWidth / 5)
+	// bestclient
+	if(s_GraphicsCustomAspect >= 100)
+	{
+		m_IsForcedViewport = false;
+	}
+	else if(m_ScreenHeight > 4 * m_ScreenWidth / 5 && g_GraphicsForcedAspect)
+	// bestclient
 	{
 		m_IsForcedViewport = true;
 		m_ScreenHeight = 4 * m_ScreenWidth / 5;
@@ -2805,6 +2918,14 @@ void CGraphics_Threaded::ReadFramebuffer(CImageInfo &Image)
 	AddCmd(Cmd);
 	KickCommandBuffer();
 	WaitForIdle();
+}
+
+// chainsaw: queue the post-processing pass; the renderer does it where it is in the frame
+void CGraphics_Threaded::BcPostFx(const SBcPostFxParams &Params)
+{
+	SCommand_BcPostFx Cmd;
+	Cmd.m_Params = Params;
+	AddCmd(Cmd);
 }
 
 void CGraphics_Threaded::Swap()

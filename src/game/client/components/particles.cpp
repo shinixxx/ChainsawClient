@@ -41,6 +41,11 @@ void CParticles::OnReset()
 
 void CParticles::Add(int Group, CParticle *pPart, float TimePassed)
 {
+	// bestclient
+	if(GameClient()->OptimizerDisableParticles())
+		return;
+	// bestclient
+
 	if(GameClient()->IsWorldPaused() || GameClient()->IsDemoPlaybackPaused())
 	{
 		return;
@@ -144,6 +149,13 @@ void CParticles::OnRender()
 
 	set_new_tick();
 	const int64_t Now = time();
+	// bestclient
+	if(GameClient()->OptimizerDisableParticles())
+	{
+		m_LastRenderTime = Now;
+		return;
+	}
+	// bestclient
 	Update((float)((Now - m_LastRenderTime) / (double)time_freq()) * GameClient()->GetAnimationPlaybackSpeed());
 	m_LastRenderTime = Now;
 }
@@ -190,6 +202,11 @@ bool CParticles::ParticleIsVisibleOnScreen(const vec2 &CurPos, float CurSize) co
 
 void CParticles::RenderGroup(int Group)
 {
+	// bestclient
+	if(GameClient()->OptimizerDisableParticles())
+		return;
+	// bestclient
+
 	IGraphics::CTextureHandle *aParticles = GameClient()->m_ParticlesSkin.m_aSpriteParticles;
 	int FirstParticleOffset = SPRITE_PART_SLICE;
 	int ParticleQuadContainerIndex = m_ParticleQuadContainerIndex;

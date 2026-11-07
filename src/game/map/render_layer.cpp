@@ -228,6 +228,13 @@ CRenderLayerGroup::CRenderLayerGroup(int GroupId, CMapItemGroup *pGroup) :
 
 bool CRenderLayerGroup::DoRender(const CRenderLayerParams &Params)
 {
+	// bestclient
+	if(Params.m_MapPreview)
+	{
+		Graphics()->ClipDisable();
+		return true;
+	}
+	// bestclient
 	if(!g_Config.m_GfxNoclip || Params.m_RenderType == ERenderType::RENDERTYPE_FULL_DESIGN)
 	{
 		Graphics()->ClipDisable();
@@ -309,6 +316,26 @@ void CRenderLayerTile::RenderTileLayer(const ColorRGBA &Color, const CRenderLaye
 		return; // no visuals were created
 
 	CScreenRect ScreenRect = Graphics()->GetScreen();
+
+	// bestclient
+	if(Params.m_FpsFogEnabled && Params.m_FpsFogCullMapTiles && Params.m_FpsFogHalfW > 0.0f && Params.m_FpsFogHalfH > 0.0f)
+	{
+		const float CenterX = (ScreenRect.m_TopLeft.x + ScreenRect.m_BottomRight.x) * 0.5f;
+		const float CenterY = (ScreenRect.m_TopLeft.y + ScreenRect.m_BottomRight.y) * 0.5f;
+		const float FogX0 = CenterX - Params.m_FpsFogHalfW;
+		const float FogX1 = CenterX + Params.m_FpsFogHalfW;
+		const float FogY0 = CenterY - Params.m_FpsFogHalfH;
+		const float FogY1 = CenterY + Params.m_FpsFogHalfH;
+
+		ScreenRect.m_TopLeft.x = std::max(ScreenRect.m_TopLeft.x, FogX0);
+		ScreenRect.m_BottomRight.x = std::min(ScreenRect.m_BottomRight.x, FogX1);
+		ScreenRect.m_TopLeft.y = std::max(ScreenRect.m_TopLeft.y, FogY0);
+		ScreenRect.m_BottomRight.y = std::min(ScreenRect.m_BottomRight.y, FogY1);
+
+		if(ScreenRect.m_TopLeft.x >= ScreenRect.m_BottomRight.x || ScreenRect.m_TopLeft.y >= ScreenRect.m_BottomRight.y)
+			return;
+	}
+	// bestclient
 
 	int ScreenRectY0 = std::floor(ScreenRect.m_TopLeft.y / 32);
 	int ScreenRectX0 = std::floor(ScreenRect.m_TopLeft.x / 32);
@@ -1445,6 +1472,11 @@ void CRenderLayerQuads::Render(const CRenderLayerParams &Params)
 
 bool CRenderLayerQuads::DoRender(const CRenderLayerParams &Params)
 {
+	// bestclient
+	if(Params.m_DisableMapQuads && Params.m_RenderType != ERenderType::RENDERTYPE_FULL_DESIGN)
+		return false;
+	// bestclient
+
 	// skip rendering anything but entities if we only want to render entities
 	if(Params.m_EntityOverlayVal == 100 && Params.m_RenderType != ERenderType::RENDERTYPE_BACKGROUND_FORCE)
 		return false;

@@ -14,6 +14,9 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <string>
+#include <unordered_map>
+#include <utility>
 
 typedef struct _json_value json_value;
 class CNetClient;
@@ -276,6 +279,10 @@ public:
 	void LoadDDNetServers();
 	void UpdateServerFilteredPlayers(CServerInfo *pInfo) const;
 	void UpdateServerFriends(CServerInfo *pInfo) const;
+	// bestclient
+	void UpdateServerBestClients(CServerInfo *pInfo) const;
+	void SetBestClientPlayers(const std::vector<CBestClientPlayerEntry> &vPlayers) override;
+	// bestclient
 	void UpdateServerCommunity(CServerInfo *pInfo) const;
 	void UpdateServerRank(CServerInfo *pInfo) const;
 	void UpdateServerLatency(CServerInfo *pInfo, int OwnLocation) const;
@@ -347,6 +354,9 @@ private:
 
 	std::vector<CCommunity> m_vCommunities;
 	std::unordered_map<NETADDR, CCommunityServer> m_CommunityServersByAddr;
+	// bestclient
+	std::unordered_map<std::string, std::unordered_map<std::string, std::pair<bool, bool>>> m_BestClientPlayersByServer;
+	// bestclient
 
 	int m_OwnLocation = CServerInfo::LOC_UNKNOWN;
 
@@ -387,6 +397,9 @@ private:
 	bool SortCompareNumPlayers(int Index1, int Index2) const;
 	bool SortCompareNumClients(int Index1, int Index2) const;
 	bool SortCompareNumFriends(int Index1, int Index2) const;
+	// bestclient
+	bool SortCompareNumBestClientPlayers(int Index1, int Index2) const;
+	// bestclient
 	bool SortCompareNumPlayersAndPing(int Index1, int Index2) const;
 	bool SortCompareFavoritesNumPlayersAndPing(int Index1, int Index2) const;
 
@@ -426,6 +439,10 @@ private:
 
 	static bool ParseCommunityFinishes(CCommunity *pCommunity, const json_value &Finishes);
 	static bool ParseCommunityServers(CCommunity *pCommunity, const json_value &Servers);
+
+	// TClient
+	std::function<void(std::vector<json_value *> &)> m_CustomCommunitiesFunction = nullptr;
+	friend class CCustomCommunities;
 };
 
 #endif

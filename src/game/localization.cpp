@@ -18,6 +18,20 @@ const char *Localize(const char *pStr, const char *pContext)
 	return pNewStr ? pNewStr : pStr;
 }
 
+// TClient
+const char *TCLocalize(const char *pStr, const char *pContext)
+{
+	return Localize(pStr, pContext);
+}
+
+// bestclient
+const char *BcLocalize(const char *pStr)
+{
+	const char *pNewStr = g_Localization.FindString(str_quickhash(pStr), str_quickhash("BestClient"));
+	return pNewStr ? pNewStr : Localize(pStr);
+}
+// bestclient
+
 void CLocalizationDatabase::LoadIndexfile(IStorage *pStorage, IConsole *pConsole)
 {
 	m_vLanguages.clear();
@@ -166,7 +180,7 @@ void CLocalizationDatabase::SelectDefaultLanguage(IConsole *pConsole, char *pFil
 	}
 }
 
-bool CLocalizationDatabase::Load(const char *pFilename, IStorage *pStorage, IConsole *pConsole)
+bool CLocalizationDatabase::Load(const char *pFilename, IStorage *pStorage, IConsole *pConsole, bool Clear)
 {
 	// empty string means unload
 	if(pFilename[0] == 0)
@@ -181,9 +195,11 @@ bool CLocalizationDatabase::Load(const char *pFilename, IStorage *pStorage, ICon
 		return false;
 
 	log_info("localization", "loaded '%s'", pFilename);
-	m_vStrings.clear();
-	m_StringsHeap.Reset();
-
+	if(Clear)
+	{
+		m_vStrings.clear();
+		m_StringsHeap.Reset();
+	}
 	char aContext[512];
 	char aOrigin[512];
 	int Line = 0;
@@ -233,6 +249,9 @@ bool CLocalizationDatabase::Load(const char *pFilename, IStorage *pStorage, ICon
 			continue;
 		}
 
+		if(str_comp(pReplacement, "== ") == 0)
+			continue;
+
 		pReplacement += 3;
 		AddString(aOrigin, pReplacement, aContext);
 	}
@@ -242,7 +261,16 @@ bool CLocalizationDatabase::Load(const char *pFilename, IStorage *pStorage, ICon
 
 void CLocalizationDatabase::AddString(const char *pOrgStr, const char *pNewStr, const char *pContext)
 {
-	m_vStrings.emplace_back(str_quickhash(pOrgStr), str_quickhash(pContext), m_StringsHeap.StoreString(*pNewStr ? pNewStr : pOrgStr));
+	// bestclient
+	const unsigned Hash = str_quickhash(pOrgStr);
+	const unsigned ContextHash = str_quickhash(pContext);
+	for(const CString &String : m_vStrings)
+	{
+		if(String.m_Hash == Hash && String.m_ContextHash == ContextHash)
+			return;
+	}
+	m_vStrings.emplace_back(Hash, ContextHash, m_StringsHeap.StoreString(*pNewStr ? pNewStr : pOrgStr));
+	// bestclient
 }
 
 const char *CLocalizationDatabase::FindString(unsigned Hash, unsigned ContextHash) const

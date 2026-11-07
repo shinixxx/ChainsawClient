@@ -78,6 +78,12 @@ public:
 		bool m_Player;
 		bool m_Afk;
 		int m_FriendState;
+		// bestclient
+		bool m_BestClient = false;
+		bool m_BestClientDeveloper = false;
+		bool m_BestClientFake = false; // bestclient
+
+		// bestclient
 		// skin info 0.6
 		char m_aSkin[MAX_SKIN_LENGTH];
 		bool m_CustomSkinColors;
@@ -127,6 +133,15 @@ public:
 	std::vector<CClient> m_vClients;
 	int m_NumFilteredPlayers;
 	bool m_RequiresLogin;
+	// bestclient
+	int m_NumBestClientPlayers = 0;
+	bool m_HasBestClientPlayers = false;
+	int m_NumBestClientDeveloperPlayers = 0;
+	bool m_HasBestClientDeveloperPlayers = false;
+	bool m_HasMapSha256 = false;
+	SHA256_DIGEST m_MapSha256{};
+	char m_aMapUrl[512]{};
+	// bestclient
 
 	static int EstimateLatency(int Loc1, int Loc2);
 	static bool ParseLocation(int *pResult, const char *pString);
@@ -288,6 +303,7 @@ public:
 		SORT_NUMPLAYERS - Sort after how many players there are on the server.
 		SORT_NUMFRIENDS - Sort after how many friends there are on the server.
 		SORT_FAVORITES - Sort by favorite status, number of players and then ping.
+		SORT_NUMBESTCLIENT - Sort after how many BestClient players there are on the server.
 	*/
 	enum
 	{
@@ -298,6 +314,9 @@ public:
 		SORT_NUMPLAYERS,
 		SORT_NUMFRIENDS,
 		SORT_FAVORITES,
+		// bestclient
+		SORT_NUMBESTCLIENT,
+		// bestclient
 	};
 
 	enum
@@ -351,6 +370,16 @@ public:
 
 	static constexpr const char *SEARCH_EXCLUDE_TOKEN = ";";
 
+	// bestclient
+	struct CBestClientPlayerEntry
+	{
+		char m_aServerAddress[MAX_SERVER_ADDRESSES * NETADDR_MAXSTRSIZE];
+		char m_aName[MAX_NAME_LENGTH];
+		bool m_Developer;
+		bool m_Fake;
+	};
+	// bestclient
+
 	virtual void Refresh(int Type, bool Force = false) = 0;
 	virtual bool IsRefreshing() const = 0;
 	virtual bool IsGettingServerlist() const = 0;
@@ -392,6 +421,9 @@ public:
 	virtual CServerEntry *Find(const NETADDR &Addr) = 0;
 	virtual int GetCurrentType() = 0;
 	virtual const char *GetTutorialServer() = 0;
+	// bestclient
+	virtual void SetBestClientPlayers(const std::vector<CBestClientPlayerEntry> &vPlayers) = 0;
+	// bestclient
 };
 
 #endif

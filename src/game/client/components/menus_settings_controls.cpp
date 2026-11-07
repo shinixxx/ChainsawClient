@@ -13,6 +13,9 @@
 #include <game/client/components/binds.h>
 #include <game/client/components/key_binder.h>
 #include <game/client/components/menus.h>
+// bestclient
+#include <game/client/components/bestclient/ui_theme/style.h>
+// bestclient
 #include <game/client/gameclient.h>
 #include <game/client/ui.h>
 #include <game/client/ui_scrollregion.h>
@@ -106,6 +109,20 @@ void CMenusSettingsControls::OnInterfacesInit(CGameClient *pClient)
 		{EBindOptionGroup::MISCELLANEOUS, Localizable("Lock team"), "say /lock"},
 		{EBindOptionGroup::MISCELLANEOUS, Localizable("Show entities"), "toggle cl_overlay_entities 0 100"},
 		{EBindOptionGroup::MISCELLANEOUS, Localizable("Show HUD"), "toggle cl_showhud 0 1"},
+		{EBindOptionGroup::BEST_CLIENT, Localizable("Admin Panel"), "toggle_admin_panel"}, // bestclient
+		{EBindOptionGroup::BEST_CLIENT, Localizable("Dummy pseudo"), "+toggle cl_dummy_hammer 1 0"}, // bestclient
+		{EBindOptionGroup::BEST_CLIENT, Localizable("Deepfly toggle"), "BC_deepfly_toggle"}, // bestclient
+		{EBindOptionGroup::BEST_CLIENT, Localizable("45 deg bind"), "+BC_45_degrees"}, // bestclient
+		{EBindOptionGroup::BEST_CLIENT, Localizable("Small sens bind"), "BC_small_sens"}, // bestclient
+		{EBindOptionGroup::BEST_CLIENT, Localizable("Left jump"), "+jump; +left"}, // bestclient
+		{EBindOptionGroup::BEST_CLIENT, Localizable("Right jump"), "+jump; +right"}, // bestclient
+		{EBindOptionGroup::BEST_CLIENT, Localizable("Find teleport"), "bc_goto_tele_cursor"}, // bestclient
+		{EBindOptionGroup::BEST_CLIENT, Localizable("Find finish"), "bc_goto_finish_cursor"}, // bestclient
+		{EBindOptionGroup::BEST_CLIENT_PRACTICE, Localizable("say /r"), "say /r"}, // bestclient
+		{EBindOptionGroup::BEST_CLIENT_PRACTICE, Localizable("say /invincible"), "say /invincible"}, // bestclient
+		{EBindOptionGroup::BEST_CLIENT_PRACTICE, Localizable("say /telecursor"), "say /telecursor"}, // bestclient
+		{EBindOptionGroup::BEST_CLIENT_PRACTICE, Localizable("say /weapons"), "say /weapons"}, // bestclient
+		{EBindOptionGroup::BEST_CLIENT_PRACTICE, Localizable("say /unweapons"), "say /unweapons"}, // bestclient
 	};
 	m_NumPredefinedBindOptions = m_vBindOptions.size();
 
@@ -191,6 +208,8 @@ void CMenusSettingsControls::Render(CUIRect MainView)
 	RenderSettingsBindsBlock(EBindOptionGroup::CHAT, &RightColumn, Localize("Chat"));
 	RenderSettingsBindsBlock(EBindOptionGroup::DUMMY, &RightColumn, Localize("Dummy"));
 	RenderSettingsBindsBlock(EBindOptionGroup::MISCELLANEOUS, &RightColumn, Localize("Miscellaneous"));
+	RenderSettingsBindsBlock(EBindOptionGroup::BEST_CLIENT, &RightColumn, Localize("BestClient")); // bestclient
+	RenderSettingsBindsBlock(EBindOptionGroup::BEST_CLIENT_PRACTICE, &RightColumn, Localize("BestClient Practice")); // bestclient
 	if(std::any_of(m_vBindOptions.begin(), m_vBindOptions.end(), [](const CBindOption &Option) { return Option.m_Group == EBindOptionGroup::CUSTOM; }))
 	{
 		RenderSettingsBindsBlock(EBindOptionGroup::CUSTOM, &RightColumn, Localize("Custom"));
@@ -381,7 +400,9 @@ void CMenusSettingsControls::RenderSettingsBlock(float Height, CUIRect *pParentR
 	pParentRect->HSplitTop(MARGIN, nullptr, pParentRect);
 	if(m_SettingsScrollRegion.AddRect(SettingsBlock) || m_SearchMatchReveal)
 	{
-		SettingsBlock.Draw(ColorRGBA(1.0f, 1.0f, 1.0f, pExpandButton == nullptr || Ui()->HotItem() != pExpandButton ? 0.25f : 0.3f), IGraphics::CORNER_ALL, 10.0f);
+		// bestclient
+		BestClientUiTheme::DrawUiBlock(&SettingsBlock, IGraphics::CORNER_ALL, 10.0f);
+		// bestclient
 		SettingsBlock.Margin(MARGIN, &SettingsBlock);
 
 		if(pTitle != nullptr)

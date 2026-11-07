@@ -126,6 +126,7 @@ public:
 		CMD_TEXT_TEXTURES_CREATE,
 		CMD_TEXT_TEXTURES_DESTROY,
 		CMD_TEXT_TEXTURE_UPDATE,
+		CMD_TEXTURE_UPDATE,
 
 		// rendering
 		CMD_CLEAR,
@@ -574,6 +575,20 @@ public:
 		uint8_t *m_pData; // will be freed by the command processor
 	};
 
+	struct SCommand_Texture_Update : public SCommand
+	{
+		SCommand_Texture_Update() :
+			SCommand(CMD_TEXTURE_UPDATE) {}
+
+		int m_Slot;
+
+		int m_X;
+		int m_Y;
+		size_t m_Width;
+		size_t m_Height;
+		uint8_t *m_pData; // will be freed by the command processor
+	};
+
 	struct SCommand_WindowCreateNtf : public CCommandBuffer::SCommand
 	{
 		SCommand_WindowCreateNtf() :
@@ -944,6 +959,7 @@ public:
 	bool LoadTextTextures(size_t Width, size_t Height, CTextureHandle &TextTexture, CTextureHandle &TextOutlineTexture, uint8_t *pTextData, uint8_t *pTextOutlineData) override;
 	bool UnloadTextTextures(CTextureHandle &TextTexture, CTextureHandle &TextOutlineTexture) override;
 	bool UpdateTextTexture(CTextureHandle TextureId, int x, int y, size_t Width, size_t Height, uint8_t *pData, bool IsMovedPointer) override;
+	bool UpdateTextureRaw(CTextureHandle TextureId, int x, int y, size_t Width, size_t Height, uint8_t *pData, bool IsMovedPointer) override;
 
 	CTextureHandle LoadSpriteTexture(const CImageInfo &FromImageInfo, const std::optional<CImageInfo> &FallbackImageInfo, const struct CDataSprite *pSprite) override;
 
@@ -1239,6 +1255,7 @@ public:
 	void ReadFramebuffer(CImageInfo &Image);
 	void SetScreenSize(int Width, int Height);
 	void Swap() override;
+	void BcPostFx(const SBcPostFxParams &Params) override; // chainsaw
 	bool SetVSync(bool State) override;
 	bool SetMultiSampling(uint32_t ReqMultiSamplingCount, uint32_t &MultiSamplingCountBackend) override;
 
@@ -1273,7 +1290,22 @@ public:
 	const char *GetFatalError() const override;
 
 	TGLBackendReadPresentedImageData &GetReadPresentedImageDataFuncUnsafe() override;
+
+	// TClient
+	void SetForcedAspect(bool Force, bool ApplyCustomAspect = true) override;
+	// bestclient
+	void SetScreenAspectOverrideEnabled(bool Enabled) override;
+	void PushPreviewViewport(int X, int Y, int W, int H) override;
+	void PopPreviewViewport() override;
+
+private:
+	bool m_PreviewViewportPushed = false;
+	float m_PreviewSavedAspectOverride = 0.0f;
+	bool m_PreviewSavedAspectOverrideEnabled = false;
+	// bestclient
 };
+
+extern bool g_GraphicsForcedAspect;
 
 typedef std::function<const char *(const char *, const char *)> TTranslateFunc;
 extern IGraphicsBackend *CreateGraphicsBackend(TTranslateFunc &&TranslateFunc);

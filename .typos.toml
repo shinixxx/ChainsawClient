@@ -4,8 +4,10 @@ extend-exclude = [
 	"build/",
 	"data/countryflags",
 	"data/languages",
+	"data/tclient/languages",
 	"data/skins",
 	"ddnet-libs",
+	"noxy-libs",
 	"other/icons/*.icns",
 	"memcheck.supp",
 	"scripts/android/files/res",
@@ -18,6 +20,7 @@ extend-exclude = [
 
 [default]
 extend-ignore-re = [
+	'TClient',
 	'lod',
 	'LOD',
 	'Lod',
@@ -28,6 +31,7 @@ extend-ignore-re = [
 	'Datas',
 	'datas',
 	'iy',
+	'ba',
 	'cl_nameplates_ids_seperate_line',
 	'LWS_.*_WRITEABLE',
 	'0x510E527FUL',

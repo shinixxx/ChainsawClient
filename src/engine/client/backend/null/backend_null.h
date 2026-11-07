@@ -11,6 +11,7 @@ class CCommandProcessorFragment_Null : public CCommandProcessorFragment_GLBase
 	void Cmd_Texture_Create(const CCommandBuffer::SCommand_Texture_Create *pCommand);
 	void Cmd_TextTextures_Create(const CCommandBuffer::SCommand_TextTextures_Create *pCommand);
 	void Cmd_TextTexture_Update(const CCommandBuffer::SCommand_TextTexture_Update *pCommand);
+	void Cmd_Texture_Update(const CCommandBuffer::SCommand_Texture_Update *pCommand);
 	void Cmd_Swap(const CCommandBuffer::SCommand_Swap *pCommand);
 };
 

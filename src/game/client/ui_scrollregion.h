@@ -111,6 +111,9 @@ private:
 	float m_ScrollPos;
 	float m_ContentSize;
 	float m_RequestScrollPos; // [0, ContentSize]
+	// bestclient
+	bool m_RequestScrollSmooth;
+	// bestclient
 	EScrollRelative m_ScrollDirection;
 	float m_ScrollSpeedMultiplier;
 
@@ -132,6 +135,9 @@ public:
 		SCROLLHERE_KEEP_IN_VIEW = 0,
 		SCROLLHERE_TOP,
 		SCROLLHERE_BOTTOM,
+		// bestclient
+		SCROLLHERE_CENTER,
+		// bestclient
 	};
 
 	CScrollRegion();
@@ -140,7 +146,7 @@ public:
 	void Begin(CUIRect *pClipRect, const CScrollRegionParams *pParams = nullptr);
 	void End();
 	bool AddRect(const CUIRect &Rect, bool ShouldScrollHere = false); // returns true if the added rect is visible (not clipped)
-	void ScrollHere(EScrollOption Option = SCROLLHERE_KEEP_IN_VIEW);
+	void ScrollHere(EScrollOption Option = SCROLLHERE_KEEP_IN_VIEW, bool Smooth = false); // bestclient: Smooth
 	void ScrollRelative(EScrollRelative Direction, float SpeedMultiplier = 1.0f);
 	void ScrollRelativeDirect(vec2 ScrollAmount);
 	void DoEdgeScrolling();
@@ -149,6 +155,9 @@ public:
 	bool ScrollbarShown() const;
 	bool Animating() const;
 	bool Active() const;
+	// bestclient
+	bool AtBottom(float Epsilon = 2.0f) const { return !ContentOverflows() || m_ScrollPos >= MaxScroll() - Epsilon; }
+	// bestclient
 
 private:
 	float ContentAreaPos() const;

@@ -39,13 +39,16 @@ class CVoting : public CComponent
 	void RenderBars(CUIRect Bars) const;
 
 public:
+	friend class CTClient; // TClient
+
 	CVoting();
 	int Sizeof() const override { return sizeof(*this); }
 	void OnReset() override;
 	void OnConsoleInit() override;
 	void OnMessage(int MsgType, void *pRawMsg) override;
 
-	void Render();
+	void Render(bool ForcePreview = false); // bestclient
+	CUIRect GetHudRect(float HudWidth, float HudHeight, bool ForcePreview = false) const; // bestclient
 
 	void CallvoteSpectate(int ClientId, const char *pReason, bool ForceVote = false);
 	void CallvoteKick(int ClientId, const char *pReason, bool ForceVote = false);

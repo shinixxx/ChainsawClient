@@ -8,6 +8,7 @@
 #include <base/mem.h>
 #include <base/str.h>
 
+#include <engine/external/tinyexpr.h>
 #include <engine/graphics.h>
 #include <engine/keys.h>
 #include <engine/shared/config.h>
@@ -42,6 +43,9 @@ void CLineInput::SetBuffer(char *pStr, size_t MaxSize, size_t MaxChars)
 		m_CaretPosition = vec2(0.0f, 0.0f);
 		m_MouseSelection.m_Selecting = false;
 		m_Hidden = false;
+		// bestclient
+		m_HideCursor = false;
+		// bestclient
 		m_pEmptyText = nullptr;
 		m_WasRendered = false;
 	}
@@ -455,6 +459,9 @@ STextBoundingBox CLineInput::Render(const CUIRect *pRect, float FontSize, int Al
 		Cursor.m_FontSize = FontSize;
 		Cursor.m_LineWidth = LineWidth;
 		Cursor.m_ForceCursorRendering = Changed;
+		// bestclient
+		Cursor.m_HideCursorQuad = m_HideCursor;
+		// bestclient
 		Cursor.m_LineSpacing = LineSpacing;
 		Cursor.m_PressMouse.x = m_MouseSelection.m_PressMouse.x;
 		Cursor.m_ReleaseMouse.x = m_MouseSelection.m_ReleaseMouse.x;
@@ -696,6 +703,12 @@ void CLineInputNumber::SetInteger(int Number, int Base, int HexPrefix)
 
 int CLineInputNumber::GetInteger(int Base) const
 {
+	if(Base == 10)
+	{
+		double Result = te_interp(GetString(), nullptr);
+		if(std::isfinite(Result))
+			return (int)std::round(Result);
+	}
 	return str_toint_base(GetString(), Base);
 }
 
@@ -719,6 +732,12 @@ void CLineInputNumber::SetInteger64(int64_t Number, int Base, int HexPrefix)
 
 int64_t CLineInputNumber::GetInteger64(int Base) const
 {
+	if(Base == 10)
+	{
+		double Result = te_interp(GetString(), nullptr);
+		if(std::isfinite(Result))
+			return (int64_t)std::round(Result);
+	}
 	return str_toint64_base(GetString(), Base);
 }
 
@@ -732,5 +751,6 @@ void CLineInputNumber::SetFloat(float Number)
 
 float CLineInputNumber::GetFloat() const
 {
-	return str_tofloat(GetString());
+	// return str_tofloat(GetString());
+	return (float)te_interp(GetString(), nullptr);
 }

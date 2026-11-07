@@ -57,30 +57,34 @@ void CMenus::RenderLanguageSettings(CUIRect MainView)
 
 bool CMenus::RenderLanguageSelection(CUIRect MainView)
 {
-	static int s_SelectedLanguage = -2; // -2 = unloaded, -1 = unset
 	static CListBox s_ListBox;
+	static int s_PreviousSelectedLanguage = -2; // bestclient
+	const auto &vLanguages = g_Localization.Languages(); // bestclient
 
-	if(s_SelectedLanguage == -2)
+	int SelectedLanguage = -1; // bestclient
+	for(size_t i = 0; i < vLanguages.size(); i++)
 	{
-		s_SelectedLanguage = -1;
-		for(size_t i = 0; i < g_Localization.Languages().size(); i++)
+		if(str_comp(vLanguages[i].m_Filename.c_str(), g_Config.m_ClLanguagefile) == 0)
 		{
-			if(str_comp(g_Localization.Languages()[i].m_Filename.c_str(), g_Config.m_ClLanguagefile) == 0)
-			{
-				s_SelectedLanguage = i;
-				s_ListBox.ScrollToSelected();
-				break;
-			}
+			SelectedLanguage = (int)i;
+			break; // bestclient
 		}
 	}
 
-	const int OldSelected = s_SelectedLanguage;
-
-	s_ListBox.DoStart(24.0f, g_Localization.Languages().size(), 1, 3, s_SelectedLanguage, &MainView);
-
-	for(const auto &Language : g_Localization.Languages())
+	if(s_PreviousSelectedLanguage != SelectedLanguage) // bestclient
 	{
-		const CListboxItem Item = s_ListBox.DoNextItem(&Language.m_Name, s_SelectedLanguage != -1 && !str_comp(g_Localization.Languages()[s_SelectedLanguage].m_Name.c_str(), Language.m_Name.c_str()));
+		s_ListBox.ScrollToSelected();
+		s_PreviousSelectedLanguage = SelectedLanguage;
+	}
+
+	const int OldSelected = SelectedLanguage; // bestclient
+	s_ListBox.DoStart(24.0f, vLanguages.size(), 1, 3, SelectedLanguage, &MainView); // bestclient
+
+	for(size_t i = 0; i < vLanguages.size(); i++) // bestclient
+	{
+		const auto &Language = vLanguages[i];
+		const bool IsSelected = SelectedLanguage == (int)i; // bestclient
+		const CListboxItem Item = s_ListBox.DoNextItem(&Language.m_Name, IsSelected);
 		if(!Item.m_Visible)
 			continue;
 
@@ -93,13 +97,13 @@ bool CMenus::RenderLanguageSelection(CUIRect MainView)
 		Ui()->DoLabel(&Label, Language.m_Name.c_str(), 16.0f, TEXTALIGN_ML);
 	}
 
-	s_SelectedLanguage = s_ListBox.DoEnd();
+	const int NewSelectedLanguage = s_ListBox.DoEnd(); // bestclient
 
-	if(OldSelected != s_SelectedLanguage)
+	if(NewSelectedLanguage >= 0 && NewSelectedLanguage < (int)vLanguages.size() && OldSelected != NewSelectedLanguage)
 	{
-		str_copy(g_Config.m_ClLanguagefile, g_Localization.Languages()[s_SelectedLanguage].m_Filename.c_str());
+		str_copy(g_Config.m_ClLanguagefile, vLanguages[NewSelectedLanguage].m_Filename.c_str());
 		GameClient()->OnLanguageChange();
-	}
+	} // bestclient
 
 	return s_ListBox.WasItemActivated();
 }

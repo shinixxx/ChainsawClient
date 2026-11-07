@@ -135,6 +135,9 @@ class CClient : public IClient, public CDemoPlayer::IListener
 	bool m_aDidPostConnect[NUM_DUMMIES] = {false, false};
 	bool m_GenerateTimeoutSeed = true;
 
+	// TClient
+	std::array<bool, NUM_DUMMIES> m_aExecuteOnJoinDone = {};
+
 	char m_aCmdConnect[256] = "";
 	char m_aCmdPlayDemo[IO_MAX_PATH_LENGTH] = "";
 	char m_aCmdEditMap[IO_MAX_PATH_LENGTH] = "";
@@ -302,6 +305,7 @@ public:
 	// Send via the currently active client (main/dummy)
 	int SendMsgActive(CMsgPacker *pMsg, int Flags) override;
 
+	void SendBClientInfo(int Conn);
 	void SendInfo(int Conn);
 	void SendEnterGame(int Conn);
 	void SendReady(int Conn);
@@ -446,6 +450,15 @@ public:
 	static void Con_StartVideo(IConsole::IResult *pResult, void *pUserData);
 	static void Con_StopVideo(IConsole::IResult *pResult, void *pUserData);
 	const char *DemoPlayer_Render(const char *pFilename, int StorageType, const char *pVideoName, int SpeedIndex, bool StartPaused = false) override;
+	// bestclient: window is switched to bc_video_width x bc_video_height while a video is rendered, then put back
+	void BcVideoPrepareWindow();
+	void BcVideoRestoreWindow();
+	bool m_BcVideoWindowSaved = false;
+	int m_BcVideoSavedFullscreen = 0;
+	int m_BcVideoSavedBorderless = 0;
+	int m_BcVideoSavedWidth = 0;
+	int m_BcVideoSavedHeight = 0;
+	int m_BcVideoSavedRefreshRate = 0;
 #endif
 
 	static void Con_Rcon(IConsole::IResult *pResult, void *pUserData);
@@ -525,13 +538,14 @@ public:
 
 	void DemoSliceBegin() override;
 	void DemoSliceEnd() override;
-	void DemoSlice(const char *pDstPath, CLIENTFUNC_FILTER pfnFilter, void *pUser) override;
+	bool DemoSlice(const char *pDstPath, CLIENTFUNC_FILTER pfnFilter, void *pUser, CLIENTFUNC_SNAPSHOT pfnSnapshot = nullptr, void *pSnapshotUser = nullptr) override;
 	virtual void SaveReplay(int Length, const char *pFilename = "");
 
 	bool EditorHasUnsavedData() const override { return m_pEditor->HasUnsavedData(); }
 
 	IFriends *Foes() override { return &m_Foes; }
 
+	void GetSmoothFreezeTick(int *pSmoothTick, float *pSmoothIntraTick, float MixAmount) override;
 	void GetSmoothTick(int *pSmoothTick, float *pSmoothIntraTick, float MixAmount) override;
 
 	void AddWarning(const SWarning &Warning) override;

@@ -28,6 +28,9 @@ public:
 	void OnRender() override;
 	void OnInit() override;
 
+	// bestclient
+	void RenderLaserData(const CLaserData *pCurrent);
+	// bestclient
 	void ReconstructSmokeTrail(const CProjectileData *pCurrent, int DestroyTick);
 	void RenderLaser(vec2 From, vec2 Pos, ColorRGBA OuterColor, ColorRGBA InnerColor, float TicksBody, float TicksHead, int Type) const;
 
@@ -45,6 +48,8 @@ private:
 	int m_DoorHeadOffset;
 	int m_PulleyHeadOffset;
 	int m_FreezeHeadOffset;
+
+	friend class CTClient;
 };
 
 #endif

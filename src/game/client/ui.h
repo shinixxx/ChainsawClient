@@ -182,6 +182,10 @@ public:
 
 		ColorRGBA m_QuadColor;
 
+		// bestclient
+		int m_GradientPhaseBucket = -1;
+		// bestclient
+
 		void Reset();
 		void Draw(const CUIRect *pRect, ColorRGBA Color, int Corners, float Rounding);
 	};
@@ -298,6 +302,7 @@ struct SPopupMenuProperties
 	int m_Corners = IGraphics::CORNER_ALL;
 	ColorRGBA m_BorderColor = ColorRGBA(0.5f, 0.5f, 0.5f, 0.75f);
 	ColorRGBA m_BackgroundColor = ColorRGBA(0.0f, 0.0f, 0.0f, 0.75f);
+	bool m_Draggable = false; // bestclient
 };
 
 /**
@@ -317,6 +322,9 @@ class CCachedText
 	int m_CursorFlags = 0;
 	STextBoundingBox m_BoundingBox = {0.0f, 0.0f, 0.0f, 0.0f};
 	float m_MaxCharacterHeight = 0.0f;
+	// bestclient
+	bool m_Colored = false;
+	// bestclient
 
 public:
 	CCachedText() = default;
@@ -325,6 +333,9 @@ public:
 	CCachedText &operator=(const CCachedText &) = delete;
 
 	void Update(ITextRender *pTextRender, const char *pText, float FontSize, float LineWidth = -1.0f, int CursorFlags = TEXTFLAG_RENDER);
+	// bestclient
+	void UpdateColored(ITextRender *pTextRender, const char *pText, float FontSize, const std::vector<STextColorSplit> &vColorSplits, float LineWidth = -1.0f, int CursorFlags = TEXTFLAG_RENDER);
+	// bestclient
 	void Render(ITextRender *pTextRender, vec2 Pos, ColorRGBA Color) const;
 	void Reset(ITextRender *pTextRender);
 
@@ -460,6 +471,15 @@ private:
 	std::function<void()> m_OnBackButtonPressedFunction;
 
 	CUIRect m_Screen;
+	// bestclient
+	int m_LastUiScale = -1;
+	int m_LastScreenWidth = 0;
+	int m_LastScreenHeight = 0;
+	float m_LastScreenAspect = 0.0f;
+	bool m_UseGraphicsScreenAspect = true;
+
+	float EffectiveScreenAspect() const;
+	// bestclient
 
 	std::vector<CUIRect> m_vClips;
 	void UpdateClipping();
@@ -468,12 +488,14 @@ private:
 	{
 		static constexpr float POPUP_BORDER = 1.0f;
 		static constexpr float POPUP_MARGIN = 4.0f;
+		static constexpr float POPUP_DRAG_HANDLE_HEIGHT = 10.0f; // bestclient
 
 		const SPopupMenuId *m_pId;
 		SPopupMenuProperties m_Props;
 		CUIRect m_Rect;
 		void *m_pContext;
 		FPopupMenuFunction m_pfnFunc;
+		bool m_Dragging = false; // bestclient
 	};
 	std::vector<SPopupMenu> m_vPopupMenus;
 	FPopupMenuClosedCallback m_pfnPopupMenuClosedCallback = nullptr;
@@ -542,6 +564,9 @@ public:
 	void DebugRender(float X, float Y);
 
 	vec2 MousePos() const { return m_MousePos; }
+	// bestclient
+	void SetMousePos(vec2 Pos) { m_MousePos = Pos; }
+	// bestclient
 	float MouseX() const { return m_MousePos.x; }
 	float MouseY() const { return m_MousePos.y; }
 	vec2 MouseDelta() const { return m_MouseDelta; }
@@ -549,6 +574,7 @@ public:
 	float MouseDeltaY() const { return m_MouseDelta.y; }
 	vec2 UpdatedMousePos() const { return m_UpdatedMousePos; }
 	vec2 UpdatedMouseDelta() const { return m_UpdatedMouseDelta; }
+	int LastMouseButton(int Index) const { return (m_LastMouseButtons >> Index) & 1; } // TClient
 	int MouseButton(int Index) const { return (m_MouseButtons >> Index) & 1; }
 	int MouseButtonClicked(int Index) const { return MouseButton(Index) && !((m_LastMouseButtons >> Index) & 1); }
 	bool CheckMouseLock()
@@ -617,6 +643,9 @@ public:
 	const CUIRect *Screen();
 	void MapScreen();
 	float PixelSize();
+	// bestclient
+	void SetUseGraphicsScreenAspect(bool UseGraphicsScreenAspect) { m_UseGraphicsScreenAspect = UseGraphicsScreenAspect; }
+	// bestclient
 
 	void ClipEnable(const CUIRect *pRect);
 	void ClipDisable();
@@ -625,6 +654,9 @@ public:
 
 	int DoButtonLogic(const void *pId, int Checked, const CUIRect *pRect, unsigned Flags);
 	int DoDraggableButtonLogic(const void *pId, int Checked, const CUIRect *pRect, bool *pClicked, bool *pAbrupted);
+	// bestclient
+	static constexpr float ms_DoubleClickTime = 0.5f;
+	// bestclient
 	bool DoDoubleClickLogic(const void *pId);
 	EEditState DoPickerLogic(const void *pId, const CUIRect *pRect, float *pX, float *pY);
 	void DoSmoothScrollLogic(float *pScrollOffset, float *pScrollOffsetChange, float ViewPortSize, float TotalSize, bool SmoothClamp = false, float ScrollSpeed = 10.0f) const;
@@ -709,7 +741,9 @@ public:
 		SCROLLBAR_OPTION_DELAYUPDATE = 1 << 3,
 	};
 	float DoScrollbarV(const void *pId, const CUIRect *pRect, float Current);
-	float DoScrollbarH(const void *pId, const CUIRect *pRect, float Current, const ColorRGBA *pColorInner = nullptr);
+	// bestclient
+	float DoScrollbarH(const void *pId, const CUIRect *pRect, float Current, const ColorRGBA *pColorInner = nullptr, const char *pValueText = nullptr);
+	// bestclient
 	bool DoScrollbarOption(const void *pId, int *pOption, const CUIRect *pRect, const char *pStr, int Min, int Max, const IScrollbarScale *pScale = &ms_LinearScrollbarScale, unsigned Flags = 0u, const char *pSuffix = "");
 
 	// progress bar
@@ -732,6 +766,11 @@ public:
 	void DoPopupMenu(const SPopupMenuId *pId, float X, float Y, float Width, float Height, void *pContext, FPopupMenuFunction pfnFunc, const SPopupMenuProperties &Props = {});
 	void RenderPopupMenus();
 	void ClosePopupMenu(const SPopupMenuId *pId, bool IncludeDescendants = false);
+	// bestclient
+	void SetPopupMenuHeight(const SPopupMenuId *pId, float Height);
+	bool GetPopupPosition(const SPopupMenuId *pId, float &X, float &Y) const;
+	void SetPopupPosition(const SPopupMenuId *pId, float X, float Y);
+	// bestclient
 	void ClosePopupMenus();
 	bool IsPopupOpen() const;
 	bool IsPopupOpen(const SPopupMenuId *pId) const;
@@ -797,6 +836,11 @@ public:
 		float m_Width;
 		float m_AlignmentHeight;
 		bool m_TransparentButtons;
+		// bestclient
+		bool m_OpenUpward = false;
+		// bestclient
+
+		bool m_SpecialFontRenderMode = false; // TClient
 
 		SSelectionPopupContext();
 		void Reset();
@@ -820,6 +864,14 @@ public:
 		ColorHSVA m_HsvaColor;
 		ColorRGBA m_RgbaColor;
 		ColorHSLA m_HslaColor;
+		// bestclient
+		ColorRGBA m_DefaultColor = ColorRGBA(1.0f, 1.0f, 1.0f, 1.0f);
+		bool m_HasDefault = false;
+		const char m_AlphaPickerId = 0;
+		CButtonContainer m_CopyButton;
+		CButtonContainer m_ResetButton;
+		CLineInputBuffered<16> m_HexInput;
+		// bestclient
 		// UI element IDs
 		const char m_HuePickerId = 0;
 		const char m_ColorPickerId = 0;
@@ -838,6 +890,9 @@ public:
 		bool m_Init = false;
 	};
 	int DoDropDown(CUIRect *pRect, int CurSelection, const char **pStrs, int Num, SDropDownState &State);
+	// bestclient
+	int DoDropDown(CUIRect *pRect, int CurSelection, const char **pStrs, int Num, SDropDownState &State, bool OpenUpward);
+	// bestclient
 };
 
 #endif

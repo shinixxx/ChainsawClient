@@ -66,6 +66,8 @@ bool CLocalServer::RunServer(const std::vector<const char *> &vpArguments)
 	std::vector<const char *> vpArgumentsWithAuth = vpArguments;
 	vpArgumentsWithAuth.push_back(aPortFileCommand);
 	vpArgumentsWithAuth.push_back(aAuthCommand);
+	// bestclient: every block client and its dummy bot connect from 127.0.0.1
+	vpArgumentsWithAuth.push_back("sv_max_clients_per_ip 128");
 
 #if defined(CONF_PLATFORM_ANDROID)
 	if(StartAndroidServer(vpArgumentsWithAuth.data(), vpArgumentsWithAuth.size()))

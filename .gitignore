@@ -50,6 +50,9 @@ rules.ninja
 testrunner\[1\]_include.cmake
 # tidy-alphabetical-end
 
+# Source template. The generated copy in the build tree still matches checksummed_*.
+!/cmake/checksummed_extra.txt
+
 /SDL2.framework
 
 # Android
@@ -157,3 +160,14 @@ tags
 *.vcxproj
 *.zip
 # tidy-alphabetical-end
+
+# TClient
+!steam_api.dll
+
+# ChainsawClient
+/build-opt/
+/noxy-libs/
+# not free to share: font with all rights reserved (Arodora LLC) and the trollface picture
+/data/BestClient/ActayWide-Bold.otf
+/data/BestClient/trollface.png
+/steam_api.dll

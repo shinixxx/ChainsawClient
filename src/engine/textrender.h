@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string> // TClient
 
 enum
 {
@@ -149,6 +150,9 @@ public:
 
 	ETextCursorCursorMode m_CursorMode = TEXT_CURSOR_CURSOR_MODE_NONE;
 	bool m_ForceCursorRendering = false;
+	// bestclient
+	bool m_HideCursorQuad = false;
+	// bestclient
 	// note this is the decoded character offset
 	int m_CursorCharacter = -1;
 	vec2 m_CursorRenderedPosition = vec2(-1.0f, -1.0f);
@@ -194,6 +198,9 @@ class ITextRender : public IInterface
 {
 	MACRO_INTERFACE("textrender")
 public:
+	virtual std::vector<std::string> *GetCustomFaces() = 0; // TClient
+	virtual void SetCustomFace(const char *pFace) = 0; // TClient
+
 	virtual bool LoadFonts() = 0;
 	virtual void SetFontPreset(EFontPreset FontPreset) = 0;
 	virtual void SetFontLanguageVariant(const char *pLanguageFile) = 0;

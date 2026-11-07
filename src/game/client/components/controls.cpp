@@ -14,6 +14,7 @@
 
 #include <game/client/components/camera.h>
 #include <game/client/components/chat.h>
+#include <game/client/components/bestclient/chat_qol.h> // bestclient
 #include <game/client/components/menus.h>
 #include <game/client/components/scoreboard.h>
 #include <game/client/gameclient.h>
@@ -42,6 +43,7 @@ void CControls::OnReset()
 
 void CControls::ResetInput(int Dummy)
 {
+	m_aInputDebounce[Dummy] = {};
 	m_aLastData[Dummy].m_Direction = 0;
 	// simulate releasing the fire button
 	if((m_aLastData[Dummy].m_Fire & 1) != 0)
@@ -52,6 +54,9 @@ void CControls::ResetInput(int Dummy)
 
 	m_aInputDirectionLeft[Dummy] = 0;
 	m_aInputDirectionRight[Dummy] = 0;
+	// bestclient
+	GameClient()->m_SnapTap.Reset(Dummy);
+	// bestclient
 }
 
 void CControls::OnPlayerDeath()
@@ -63,6 +68,7 @@ struct CInputState
 {
 	CControls *m_pControls;
 	int *m_apVariables[NUM_DUMMIES];
+	int m_Input;
 };
 
 void CControls::ConKeyInputState(IConsole::IResult *pResult, void *pUserData)
@@ -72,7 +78,22 @@ void CControls::ConKeyInputState(IConsole::IResult *pResult, void *pUserData)
 	if(pState->m_pControls->GameClient()->m_GameInfo.m_BugDDRaceInput && pState->m_pControls->GameClient()->m_Snap.m_SpecInfo.m_Active)
 		return;
 
-	*pState->m_apVariables[g_Config.m_ClDummy] = pResult->GetInteger(0);
+	int *pVariable = pState->m_apVariables[g_Config.m_ClDummy];
+	const int Value = pResult->GetInteger(0);
+	if(!Value && *pVariable && g_Config.m_BcInputDebounce && pState->m_Input >= 0)
+		pState->m_pControls->InputDebounce(g_Config.m_ClDummy, pState->m_Input);
+	*pVariable = Value;
+}
+
+void CControls::InputDebounce(int Dummy, int Input)
+{
+	switch(Input)
+	{
+	case INPUT_LEFT: if(m_aLastData[Dummy].m_Direction != -1) m_aInputDebounce[Dummy].m_Direction = -1; break;
+	case INPUT_RIGHT: if(m_aLastData[Dummy].m_Direction != 1) m_aInputDebounce[Dummy].m_Direction = 1; break;
+	case INPUT_JUMP: m_aInputDebounce[Dummy].m_Jump = m_aLastData[Dummy].m_Jump ? -1 : 1; break;
+	case INPUT_HOOK: m_aInputDebounce[Dummy].m_Hook = m_aLastData[Dummy].m_Hook ? -1 : 1; break;
+	}
 }
 
 void CControls::ConKeyInputCounter(IConsole::IResult *pResult, void *pUserData)
@@ -83,9 +104,13 @@ void CControls::ConKeyInputCounter(IConsole::IResult *pResult, void *pUserData)
 		return;
 
 	int *pVariable = pState->m_apVariables[g_Config.m_ClDummy];
-	if(((*pVariable) & 1) != pResult->GetInteger(0))
+	const bool Pressed = pResult->GetInteger(0) != 0;
+	if(((*pVariable) & 1) != Pressed)
 		(*pVariable)++;
 	*pVariable &= INPUT_STATE_MASK;
+	if(pVariable == &pState->m_pControls->m_aInputData[g_Config.m_ClDummy].m_Fire)
+		pState->m_pControls->GameClient()->m_BestClient.OnGoresFireInput(pResult->GetInteger(0));
+	// bestclient
 }
 
 struct CInputSet
@@ -115,27 +140,27 @@ void CControls::OnConsoleInit()
 {
 	// game commands
 	{
-		static CInputState s_State = {this, {&m_aInputDirectionLeft[0], &m_aInputDirectionLeft[1]}};
+		static CInputState s_State = {this, {&m_aInputDirectionLeft[0], &m_aInputDirectionLeft[1]}, INPUT_LEFT};
 		Console()->Register("+left", "", CFGFLAG_CLIENT, ConKeyInputState, &s_State, "Move left");
 	}
 	{
-		static CInputState s_State = {this, {&m_aInputDirectionRight[0], &m_aInputDirectionRight[1]}};
+		static CInputState s_State = {this, {&m_aInputDirectionRight[0], &m_aInputDirectionRight[1]}, INPUT_RIGHT};
 		Console()->Register("+right", "", CFGFLAG_CLIENT, ConKeyInputState, &s_State, "Move right");
 	}
 	{
-		static CInputState s_State = {this, {&m_aInputData[0].m_Jump, &m_aInputData[1].m_Jump}};
+		static CInputState s_State = {this, {&m_aInputData[0].m_Jump, &m_aInputData[1].m_Jump}, INPUT_JUMP};
 		Console()->Register("+jump", "", CFGFLAG_CLIENT, ConKeyInputState, &s_State, "Jump");
 	}
 	{
-		static CInputState s_State = {this, {&m_aInputData[0].m_Hook, &m_aInputData[1].m_Hook}};
+		static CInputState s_State = {this, {&m_aInputData[0].m_Hook, &m_aInputData[1].m_Hook}, INPUT_HOOK};
 		Console()->Register("+hook", "", CFGFLAG_CLIENT, ConKeyInputState, &s_State, "Hook");
 	}
 	{
-		static CInputState s_State = {this, {&m_aInputData[0].m_Fire, &m_aInputData[1].m_Fire}};
+		static CInputState s_State = {this, {&m_aInputData[0].m_Fire, &m_aInputData[1].m_Fire}, -1};
 		Console()->Register("+fire", "", CFGFLAG_CLIENT, ConKeyInputCounter, &s_State, "Fire");
 	}
 	{
-		static CInputState s_State = {this, {&m_aShowHookColl[0], &m_aShowHookColl[1]}};
+		static CInputState s_State = {this, {&m_aShowHookColl[0], &m_aShowHookColl[1]}, -1};
 		Console()->Register("+showhookcoll", "", CFGFLAG_CLIENT, ConKeyInputState, &s_State, "Show Hook Collision");
 	}
 
@@ -184,6 +209,13 @@ void CControls::OnMessage(int Msg, void *pRawMsg)
 
 int CControls::SnapInput(int *pData)
 {
+	const int UnlatchedJump = m_aInputData[g_Config.m_ClDummy].m_Jump;
+	const int UnlatchedHook = m_aInputData[g_Config.m_ClDummy].m_Hook;
+
+	// bestclient
+	GameClient()->m_BestClient.UpdateGoresMode();
+	// bestclient
+
 	// update player state
 	if(GameClient()->m_Chat.IsActive())
 		m_aInputData[g_Config.m_ClDummy].m_PlayerFlags = PLAYERFLAG_CHATTING;
@@ -214,6 +246,19 @@ int CControls::SnapInput(int *pData)
 		break;
 	}
 
+	// TClient
+	if(g_Config.m_TcHideChatBubbles && Client()->RconAuthed())
+		for(auto &InputData : m_aInputData)
+			InputData.m_PlayerFlags &= ~PLAYERFLAG_CHATTING;
+
+	// bestclient
+	CChatQoL::ApplySilentTyping(m_aInputData, NUM_DUMMIES, g_Config.m_BcSilentTyping != 0);
+	// bestclient
+
+	if(g_Config.m_TcNameplatePingCircle)
+		for(auto &InputData : m_aInputData)
+			InputData.m_PlayerFlags |= PLAYERFLAG_SCOREBOARD;
+
 	bool Send = m_aLastData[g_Config.m_ClDummy].m_PlayerFlags != m_aInputData[g_Config.m_ClDummy].m_PlayerFlags;
 
 	m_aLastData[g_Config.m_ClDummy].m_PlayerFlags = m_aInputData[g_Config.m_ClDummy].m_PlayerFlags;
@@ -225,39 +270,64 @@ int CControls::SnapInput(int *pData)
 			ResetInput(g_Config.m_ClDummy);
 
 		mem_copy(pData, &m_aInputData[g_Config.m_ClDummy], sizeof(m_aInputData[0]));
-
 		// set the target anyway though so that we can keep seeing our surroundings,
 		// even if chat or menu are activated
-		m_aInputData[g_Config.m_ClDummy].m_TargetX = (int)m_aMousePos[g_Config.m_ClDummy].x;
-		m_aInputData[g_Config.m_ClDummy].m_TargetY = (int)m_aMousePos[g_Config.m_ClDummy].y;
+		vec2 Pos = GameClient()->m_Controls.m_aMousePos[g_Config.m_ClDummy];
+		if(g_Config.m_TcScaleMouseDistance && !GameClient()->m_Snap.m_SpecInfo.m_Active)
+		{
+			const int MaxDistance = g_Config.m_ClDyncam ? g_Config.m_ClDyncamMaxDistance : g_Config.m_ClMouseMaxDistance;
+			if(MaxDistance > 5 && MaxDistance < 1000) // Don't scale if angle bind or reduces precision
+				Pos *= 1000.0f / (float)MaxDistance;
+		}
+		m_aInputData[g_Config.m_ClDummy].m_TargetX = (int)Pos.x;
+		m_aInputData[g_Config.m_ClDummy].m_TargetY = (int)Pos.y;
+
+		if(!m_aInputData[g_Config.m_ClDummy].m_TargetX && !m_aInputData[g_Config.m_ClDummy].m_TargetY)
+			m_aInputData[g_Config.m_ClDummy].m_TargetX = 1;
 
 		// send once a second just to be sure
 		Send = Send || time_get() > m_LastSendTime + time_freq();
 	}
 	else
 	{
-		m_aInputData[g_Config.m_ClDummy].m_TargetX = (int)m_aMousePos[g_Config.m_ClDummy].x;
-		m_aInputData[g_Config.m_ClDummy].m_TargetY = (int)m_aMousePos[g_Config.m_ClDummy].y;
-
+		// TClient
+		vec2 Pos;
 		if(g_Config.m_ClSubTickAiming && m_aMousePosOnAction[g_Config.m_ClDummy] != vec2(0.0f, 0.0f))
 		{
-			m_aInputData[g_Config.m_ClDummy].m_TargetX = (int)m_aMousePosOnAction[g_Config.m_ClDummy].x;
-			m_aInputData[g_Config.m_ClDummy].m_TargetY = (int)m_aMousePosOnAction[g_Config.m_ClDummy].y;
+			Pos = GameClient()->m_Controls.m_aMousePosOnAction[g_Config.m_ClDummy];
 			m_aMousePosOnAction[g_Config.m_ClDummy] = vec2(0.0f, 0.0f);
 		}
+		else
+			Pos = GameClient()->m_Controls.m_aMousePos[g_Config.m_ClDummy];
+
+		m_FastInputHookAction = false;
+		m_FastInputFireAction = false;
+
+		if(g_Config.m_TcScaleMouseDistance && !GameClient()->m_Snap.m_SpecInfo.m_Active)
+		{
+			const int MaxDistance = g_Config.m_ClDyncam ? g_Config.m_ClDyncamMaxDistance : g_Config.m_ClMouseMaxDistance;
+			if(MaxDistance > 5 && MaxDistance < 1000) // Don't scale if angle bind or reduces precision
+				Pos *= 1000.0f / (float)MaxDistance;
+		}
+		m_aInputData[g_Config.m_ClDummy].m_TargetX = (int)Pos.x;
+		m_aInputData[g_Config.m_ClDummy].m_TargetY = (int)Pos.y;
 
 		if(!m_aInputData[g_Config.m_ClDummy].m_TargetX && !m_aInputData[g_Config.m_ClDummy].m_TargetY)
-		{
 			m_aInputData[g_Config.m_ClDummy].m_TargetX = 1;
-			m_aMousePos[g_Config.m_ClDummy].x = 1;
-		}
 
 		// set direction
-		m_aInputData[g_Config.m_ClDummy].m_Direction = 0;
-		if(m_aInputDirectionLeft[g_Config.m_ClDummy] && !m_aInputDirectionRight[g_Config.m_ClDummy])
-			m_aInputData[g_Config.m_ClDummy].m_Direction = -1;
-		if(!m_aInputDirectionLeft[g_Config.m_ClDummy] && m_aInputDirectionRight[g_Config.m_ClDummy])
-			m_aInputData[g_Config.m_ClDummy].m_Direction = 1;
+		// bestclient
+		const bool LeftPressed = m_aInputDirectionLeft[g_Config.m_ClDummy] != 0;
+		const bool RightPressed = m_aInputDirectionRight[g_Config.m_ClDummy] != 0;
+		m_aInputData[g_Config.m_ClDummy].m_Direction = GameClient()->m_SnapTap.ResolveMovementDirection(g_Config.m_ClDummy, LeftPressed, RightPressed, true);
+		const CInputDebounceState &DebounceState = m_aInputDebounce[g_Config.m_ClDummy];
+		if(m_aInputData[g_Config.m_ClDummy].m_Direction == 0 && DebounceState.m_Direction)
+			m_aInputData[g_Config.m_ClDummy].m_Direction = DebounceState.m_Direction;
+		if(DebounceState.m_Jump)
+			m_aInputData[g_Config.m_ClDummy].m_Jump = DebounceState.m_Jump > 0;
+		if(DebounceState.m_Hook)
+			m_aInputData[g_Config.m_ClDummy].m_Hook = DebounceState.m_Hook > 0;
+		// bestclient
 
 		// dummy copy moves
 		if(g_Config.m_ClDummyCopyMoves)
@@ -324,16 +394,32 @@ int CControls::SnapInput(int *pData)
 		Send = Send || m_aInputData[g_Config.m_ClDummy].m_PrevWeapon != m_aLastData[g_Config.m_ClDummy].m_PrevWeapon;
 		Send = Send || time_get() > m_LastSendTime + time_freq() / 25; // send at least 25 Hz
 		Send = Send || (GameClient()->m_Snap.m_pLocalCharacter && GameClient()->m_Snap.m_pLocalCharacter->m_Weapon == WEAPON_NINJA && (m_aInputData[g_Config.m_ClDummy].m_Direction || m_aInputData[g_Config.m_ClDummy].m_Jump || m_aInputData[g_Config.m_ClDummy].m_Hook));
+		// bestclient
+		if(GameClient()->m_FastPractice.Enabled())
+			Send = true;
+		// bestclient
 	}
 
 	// copy and return size
 	m_aLastData[g_Config.m_ClDummy] = m_aInputData[g_Config.m_ClDummy];
 
 	if(!Send)
+	{
+		if(m_aInputDebounce[g_Config.m_ClDummy].m_Jump)
+			m_aInputData[g_Config.m_ClDummy].m_Jump = UnlatchedJump;
+		if(m_aInputDebounce[g_Config.m_ClDummy].m_Hook)
+			m_aInputData[g_Config.m_ClDummy].m_Hook = UnlatchedHook;
+		m_aInputDebounce[g_Config.m_ClDummy] = {};
 		return 0;
+	}
 
 	m_LastSendTime = time_get();
 	mem_copy(pData, &m_aInputData[g_Config.m_ClDummy], sizeof(m_aInputData[0]));
+	if(m_aInputDebounce[g_Config.m_ClDummy].m_Jump)
+		m_aInputData[g_Config.m_ClDummy].m_Jump = UnlatchedJump;
+	if(m_aInputDebounce[g_Config.m_ClDummy].m_Hook)
+		m_aInputData[g_Config.m_ClDummy].m_Hook = UnlatchedHook;
+	m_aInputDebounce[g_Config.m_ClDummy] = {};
 	return sizeof(m_aInputData[0]);
 }
 
@@ -452,6 +538,18 @@ void CControls::ClampMousePos()
 		MouseDistance = length(m_aMousePos[g_Config.m_ClDummy]);
 		if(MouseDistance > MouseMax)
 			m_aMousePos[g_Config.m_ClDummy] = normalize_pre_length(m_aMousePos[g_Config.m_ClDummy], MouseDistance) * MouseMax;
+
+		if(g_Config.m_TcLimitMouseToScreen)
+		{
+			float Width, Height;
+			Graphics()->CalcScreenParams(Graphics()->ScreenAspect(), 1.0f, &Width, &Height);
+			Height /= 2.0f;
+			Width /= 2.0f;
+			if(g_Config.m_TcLimitMouseToScreen == 2)
+				Width = Height;
+			m_aMousePos[g_Config.m_ClDummy].y = std::clamp(m_aMousePos[g_Config.m_ClDummy].y, -Height, Height);
+			m_aMousePos[g_Config.m_ClDummy].x = std::clamp(m_aMousePos[g_Config.m_ClDummy].x, -Width, Width);
+		}
 	}
 }
 
@@ -467,4 +565,121 @@ float CControls::GetMaxMouseDistance() const
 	float DeadZone = g_Config.m_ClDyncam ? g_Config.m_ClDyncamDeadzone : g_Config.m_ClMouseDeadzone;
 	float MaxDistance = g_Config.m_ClDyncam ? g_Config.m_ClDyncamMaxDistance : g_Config.m_ClMouseMaxDistance;
 	return std::min(FollowFactor != 0.0f ? CameraMaxDistance / FollowFactor + DeadZone : MaxDistance, MaxDistance);
+}
+
+bool CControls::CheckNewInput()
+{
+	// bestclient
+	if(g_Config.m_BcInputs == BC_INPUTS_SAIKO && g_Config.m_BcSaikoInputAmount > 0)
+	{
+		CNetObj_PlayerInput TestInput = m_aInputData[g_Config.m_ClDummy];
+		const bool LeftPressed = m_aInputDirectionLeft[g_Config.m_ClDummy] != 0;
+		const bool RightPressed = m_aInputDirectionRight[g_Config.m_ClDummy] != 0;
+		TestInput.m_Direction = GameClient()->m_SnapTap.ResolveMovementDirection(g_Config.m_ClDummy, LeftPressed, RightPressed, false);
+		const CInputDebounceState &DebounceState = m_aInputDebounce[g_Config.m_ClDummy];
+		if(TestInput.m_Direction == 0 && DebounceState.m_Direction) TestInput.m_Direction = DebounceState.m_Direction;
+		if(DebounceState.m_Jump) TestInput.m_Jump = DebounceState.m_Jump > 0;
+		if(DebounceState.m_Hook) TestInput.m_Hook = DebounceState.m_Hook > 0;
+
+		bool NewInput = false;
+		if(m_aFastInput[g_Config.m_ClDummy].m_Direction != TestInput.m_Direction)
+			NewInput = true;
+		if(m_aFastInput[g_Config.m_ClDummy].m_Hook != TestInput.m_Hook)
+			NewInput = true;
+		if(m_aFastInput[g_Config.m_ClDummy].m_Fire != TestInput.m_Fire)
+			NewInput = true;
+		if(m_aFastInput[g_Config.m_ClDummy].m_Jump != TestInput.m_Jump)
+			NewInput = true;
+		if(m_aFastInput[g_Config.m_ClDummy].m_NextWeapon != TestInput.m_NextWeapon)
+			NewInput = true;
+		if(m_aFastInput[g_Config.m_ClDummy].m_PrevWeapon != TestInput.m_PrevWeapon)
+			NewInput = true;
+		if(m_aFastInput[g_Config.m_ClDummy].m_WantedWeapon != TestInput.m_WantedWeapon)
+			NewInput = true;
+
+		if(g_Config.m_ClSubTickAiming)
+		{
+			TestInput.m_TargetX = (int)m_aMousePos[g_Config.m_ClDummy].x;
+			TestInput.m_TargetY = (int)m_aMousePos[g_Config.m_ClDummy].y;
+		}
+
+		m_aFastInput[g_Config.m_ClDummy] = TestInput;
+		return NewInput;
+	}
+	// bestclient
+
+	bool NewInput[2] = {};
+	for(int Dummy = 0; Dummy < NUM_DUMMIES; Dummy++)
+	{
+		CNetObj_PlayerInput TestInput = m_aInputData[Dummy];
+		if(Dummy == g_Config.m_ClDummy)
+		{
+			// bestclient
+			const bool LeftPressed = m_aInputDirectionLeft[Dummy] != 0;
+			const bool RightPressed = m_aInputDirectionRight[Dummy] != 0;
+			TestInput.m_Direction = GameClient()->m_SnapTap.ResolveMovementDirection(Dummy, LeftPressed, RightPressed, false);
+			const CInputDebounceState &DebounceState = m_aInputDebounce[Dummy];
+			if(TestInput.m_Direction == 0 && DebounceState.m_Direction) TestInput.m_Direction = DebounceState.m_Direction;
+			if(DebounceState.m_Jump) TestInput.m_Jump = DebounceState.m_Jump > 0;
+			if(DebounceState.m_Hook) TestInput.m_Hook = DebounceState.m_Hook > 0;
+			// bestclient
+		}
+
+		if(m_aFastInput[Dummy].m_Direction != TestInput.m_Direction)
+			NewInput[Dummy] = true;
+		if(m_aFastInput[Dummy].m_Hook != TestInput.m_Hook)
+			NewInput[Dummy] = true;
+		if(m_aFastInput[Dummy].m_Fire != TestInput.m_Fire)
+			NewInput[Dummy] = true;
+		if(m_aFastInput[Dummy].m_Jump != TestInput.m_Jump)
+			NewInput[Dummy] = true;
+		if(m_aFastInput[Dummy].m_NextWeapon != TestInput.m_NextWeapon)
+			NewInput[Dummy] = true;
+		if(m_aFastInput[Dummy].m_PrevWeapon != TestInput.m_PrevWeapon)
+			NewInput[Dummy] = true;
+		if(m_aFastInput[Dummy].m_WantedWeapon != TestInput.m_WantedWeapon)
+			NewInput[Dummy] = true;
+
+		// When sub tick aiming is disabled on the first tick of a hook it's viable to update the fast input
+		// prediction on every mouse movement before the hook+direction input is sent and finalized.
+		const bool RefreshHookAim = g_Config.m_TcFastInputRepredictHook && !g_Config.m_ClSubTickAiming &&
+					    Dummy == g_Config.m_ClDummy && TestInput.m_Hook && !m_aLastData[Dummy].m_Hook;
+		bool SetMousePos = RefreshHookAim;
+		// We need to be careful about how we manage the mouse position to avoid mispredicted hooks and fires
+		// on the first tick that they activate before we know what mouse position we actually sent to the server
+		if(Dummy == g_Config.m_ClDummy)
+		{
+			if(m_aFastInput[Dummy].m_Hook == 0 && TestInput.m_Hook == 1)
+			{
+				m_FastInputHookAction = true;
+				SetMousePos = true;
+			}
+			if(m_aFastInput[Dummy].m_Fire != TestInput.m_Fire && TestInput.m_Fire % 2 == 1)
+			{
+				m_FastInputFireAction = true;
+				SetMousePos = true;
+			}
+			if(!m_FastInputHookAction && !m_FastInputFireAction)
+			{
+				SetMousePos = true;
+			}
+		}
+
+		if(SetMousePos)
+		{
+			TestInput.m_TargetX = (int)m_aMousePos[Dummy].x;
+			TestInput.m_TargetY = (int)m_aMousePos[Dummy].y;
+			if(RefreshHookAim && (TestInput.m_TargetX != m_aFastInput[Dummy].m_TargetX || TestInput.m_TargetY != m_aFastInput[Dummy].m_TargetY))
+				NewInput[Dummy] = true;
+		}
+		else
+		{
+			TestInput.m_TargetX = m_aFastInput[Dummy].m_TargetX;
+			TestInput.m_TargetY = m_aFastInput[Dummy].m_TargetY;
+		}
+
+		m_aFastInput[Dummy] = TestInput;
+	}
+
+	return NewInput[0] || NewInput[1];
 }

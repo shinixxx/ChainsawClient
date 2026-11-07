@@ -59,6 +59,11 @@ private:
 
 	char m_aAutoSpecCameraTooltip[512];
 
+	// bestclient
+	bool m_CinematicCameraSmoothing = false;
+	vec2 m_CinematicCameraPosition = vec2(0.0f, 0.0f);
+	// bestclient
+
 public:
 	static constexpr float ZOOM_STEP = 0.866025f;
 

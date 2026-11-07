@@ -8,6 +8,7 @@
 
 #ifndef BACKEND_NO_SDL
 #include <engine/client/backend_sdl.h>
+#include <engine/client/bc_postfx_cmd.h> // chainsaw
 #endif
 #include <engine/graphics.h>
 
@@ -942,6 +943,11 @@ void CCommandProcessorFragment_OpenGL::Cmd_TextTexture_Update(const CCommandBuff
 	TextureUpdate(pCommand->m_Slot, pCommand->m_X, pCommand->m_Y, pCommand->m_Width, pCommand->m_Height, GL_ALPHA, pCommand->m_pData);
 }
 
+void CCommandProcessorFragment_OpenGL::Cmd_Texture_Update(const CCommandBuffer::SCommand_Texture_Update *pCommand)
+{
+	TextureUpdate(pCommand->m_Slot, pCommand->m_X, pCommand->m_Y, pCommand->m_Width, pCommand->m_Height, GL_RGBA, pCommand->m_pData);
+}
+
 void CCommandProcessorFragment_OpenGL::Cmd_TextTextures_Destroy(const CCommandBuffer::SCommand_TextTextures_Destroy *pCommand)
 {
 	DestroyTexture(pCommand->m_Slot);
@@ -1109,6 +1115,9 @@ ERunCommandReturnTypes CCommandProcessorFragment_OpenGL::RunCommand(const CComma
 	case CCommandBuffer::CMD_TEXT_TEXTURE_UPDATE:
 		Cmd_TextTexture_Update(static_cast<const CCommandBuffer::SCommand_TextTexture_Update *>(pBaseCommand));
 		break;
+	case CCommandBuffer::CMD_TEXTURE_UPDATE:
+		Cmd_Texture_Update(static_cast<const CCommandBuffer::SCommand_Texture_Update *>(pBaseCommand));
+		break;
 	case CCommandBuffer::CMD_CLEAR:
 		Cmd_Clear(static_cast<const CCommandBuffer::SCommand_Clear *>(pBaseCommand));
 		break;
@@ -1147,6 +1156,12 @@ ERunCommandReturnTypes CCommandProcessorFragment_OpenGL::RunCommand(const CComma
 	case CCommandBuffer::CMD_RENDER_QUAD_CONTAINER: Cmd_RenderQuadContainer(static_cast<const CCommandBuffer::SCommand_RenderQuadContainer *>(pBaseCommand)); break;
 	case CCommandBuffer::CMD_RENDER_QUAD_CONTAINER_EX: Cmd_RenderQuadContainerEx(static_cast<const CCommandBuffer::SCommand_RenderQuadContainerEx *>(pBaseCommand)); break;
 	case CCommandBuffer::CMD_RENDER_QUAD_CONTAINER_SPRITE_MULTIPLE: Cmd_RenderQuadContainerAsSpriteMultiple(static_cast<const CCommandBuffer::SCommand_RenderQuadContainerAsSpriteMultiple *>(pBaseCommand)); break;
+	case CMD_BC_POSTFX: Cmd_BcPostFx(static_cast<const SCommand_BcPostFx *>(pBaseCommand)); break; // chainsaw
+	// bestclient
+	case CCommandBuffer::CMD_SWAP:
+		Cmd_BeforeSwap();
+		return ERunCommandReturnTypes::RUN_COMMAND_COMMAND_UNHANDLED;
+	// bestclient
 	default: return ERunCommandReturnTypes::RUN_COMMAND_COMMAND_UNHANDLED;
 	}
 

@@ -13,6 +13,7 @@ class CCollision;
 class CCharacter;
 class CEntity;
 class CMapBugs;
+class CEgoTilesPrediction; // bestclient
 
 class CGameWorld
 {
@@ -64,6 +65,9 @@ public:
 	std::vector<SSwitchers> &Switchers() { return m_Core.m_vSwitchers; }
 	CEntity *GetEntity(int Id, int EntityType);
 	CCharacter *GetCharacterById(int Id) { return (Id >= 0 && Id < MAX_CLIENTS) ? m_apCharacters[Id] : nullptr; }
+	// bestclient
+	const CCharacter *GetCharacterById(int Id) const { return (Id >= 0 && Id < MAX_CLIENTS) ? m_apCharacters[Id] : nullptr; }
+	// bestclient
 
 	// from gamecontext
 	void CreateExplosion(vec2 Pos, int Owner, int Weapon, bool NoDamage, int ActivatedTeam, CClientMask Mask, int Id = -1);
@@ -85,6 +89,7 @@ public:
 		bool m_NoWeakHookAndBounce;
 		bool m_PredictEvents;
 		bool m_OldLaser;
+		bool m_PredictTeleports; // bestclient
 	} m_WorldConfig;
 
 	bool m_IsValidCopy;
@@ -92,6 +97,10 @@ public:
 	CGameWorld *m_pChild;
 
 	int m_LocalClientId;
+
+	// bestclient
+	CEgoTilesPrediction *m_pEgoTilesPrediction = nullptr;
+	// bestclient
 
 	bool IsLocalTeam(int OwnerId) const;
 	void OnModified() const;
@@ -101,6 +110,7 @@ public:
 	void ResetDoorCollision();
 	void NetObjEnd();
 	void CopyWorld(CGameWorld *pFrom);
+	void CopyWorldClean(CGameWorld *pFrom); // TClient
 	CEntity *FindMatch(int ObjId, int ObjType, const void *pObjData);
 	void Clear();
 

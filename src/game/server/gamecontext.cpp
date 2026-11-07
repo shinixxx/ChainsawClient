@@ -5437,3 +5437,4 @@ void CGameContext::ReinitPlayerMap(int ClientId, bool Timeout)
 	SixupCfg.m_ClearSlots = true;
 	m_PlayerMapping.InitPlayerMap(ClientId, SixupCfg);
 }
+

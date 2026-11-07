@@ -248,6 +248,10 @@ protected:
 	int m_ScreenRefreshRate;
 	float m_ScreenHiDPIScale;
 	ivec2 m_DesktopSize;
+	// bestclient
+	float m_ScreenAspectOverride = 0.0f;
+	bool m_ScreenAspectOverrideEnabled = true;
+	// bestclient
 
 public:
 	enum
@@ -277,7 +281,9 @@ public:
 	int ScreenWidth() const { return m_ScreenWidth; }
 	int ScreenHeight() const { return m_ScreenHeight; }
 	vec2 ScreenSize() const { return vec2(m_ScreenWidth, m_ScreenHeight); }
-	float ScreenAspect() const { return (float)ScreenWidth() / (float)ScreenHeight(); }
+	// bestclient
+	float ScreenAspect() const { return m_ScreenAspectOverrideEnabled && m_ScreenAspectOverride > 0.0f ? m_ScreenAspectOverride : (float)ScreenWidth() / (float)ScreenHeight(); }
+	// bestclient
 	float ScreenHiDPIScale() const { return m_ScreenHiDPIScale; }
 	int WindowWidth() const { return m_ScreenWidth / m_ScreenHiDPIScale; }
 	int WindowHeight() const { return m_ScreenHeight / m_ScreenHiDPIScale; }
@@ -367,6 +373,7 @@ public:
 	virtual bool LoadTextTextures(size_t Width, size_t Height, CTextureHandle &TextTexture, CTextureHandle &TextOutlineTexture, uint8_t *pTextData, uint8_t *pTextOutlineData) = 0;
 	virtual bool UnloadTextTextures(CTextureHandle &TextTexture, CTextureHandle &TextOutlineTexture) = 0;
 	virtual bool UpdateTextTexture(CTextureHandle TextureId, int x, int y, size_t Width, size_t Height, uint8_t *pData, bool IsMovedPointer) = 0;
+	virtual bool UpdateTextureRaw(CTextureHandle TextureId, int x, int y, size_t Width, size_t Height, uint8_t *pData, bool IsMovedPointer) = 0;
 
 	virtual CTextureHandle LoadSpriteTexture(const CImageInfo &FromImageInfo, const std::optional<CImageInfo> &FallbackImageInfo, const struct CDataSprite *pSprite) = 0;
 
@@ -571,6 +578,8 @@ public:
 	virtual int GetVideoModes(CVideoMode *pModes, int MaxModes, int Screen) = 0;
 	virtual void GetCurrentVideoMode(CVideoMode &CurMode, int Screen) = 0;
 	virtual void Swap() = 0;
+	// chainsaw: post-processing pass (bc_postfx_params.h); only the OpenGL 3.3 renderer draws it
+	virtual void BcPostFx(const struct SBcPostFxParams &Params) {}
 	virtual int GetNumScreens() const = 0;
 	virtual const char *GetScreenName(int Screen) const = 0;
 
@@ -672,6 +681,15 @@ protected:
 		Tex.m_Id = Index;
 		return Tex;
 	}
+
+public:
+	// TClient
+	virtual void SetForcedAspect(bool Force, bool ApplyCustomAspect = true) = 0;
+	// bestclient
+	virtual void SetScreenAspectOverrideEnabled(bool Enabled) = 0;
+	virtual void PushPreviewViewport(int X, int Y, int W, int H) = 0;
+	virtual void PopPreviewViewport() = 0;
+	// bestclient
 };
 
 class IEngineGraphics : public IGraphics

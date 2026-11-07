@@ -25,6 +25,7 @@ class CConsoleLogger;
 class CGameConsole : public CComponent
 {
 	friend class CConsoleLogger;
+	friend class CConsoleScroll; // bestclient
 	class CInstance
 	{
 	public:
@@ -59,6 +60,10 @@ class CGameConsole : public CComponent
 		int m_CurSelEnd = 0;
 		bool m_HasSelection = false;
 		int m_NewLineCounter = 0;
+		// bestclient
+		bool m_ScrollbarDragging = false;
+		float m_ScrollbarDragOffset = 0.0f;
+		// bestclient
 
 		CGameConsole *m_pGameConsole;
 
@@ -201,6 +206,11 @@ public:
 
 	void PrintLine(int Type, const char *pLine);
 	void RequireUsername(bool UsernameReq);
+	// bestclient
+	bool RconUsernameRequired() const { return m_RemoteConsole.m_UsernameReq; }
+	CGameClient *BcGameClient() { return GameClient(); }
+	const CGameClient *BcGameClient() const { return GameClient(); }
+	// bestclient
 
 	void OnStateChange(int NewState, int OldState) override;
 	void OnConsoleInit() override;

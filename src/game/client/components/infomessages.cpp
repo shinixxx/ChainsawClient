@@ -89,6 +89,9 @@ CInfoMessages::CInfoMsg CInfoMessages::CreateInfoMsg(EType Type)
 	CInfoMsg InfoMsg;
 	InfoMsg.m_Type = Type;
 	InfoMsg.m_Tick = Client()->GameTick(g_Config.m_ClDummy);
+	// bestclient
+	InfoMsg.m_AppearTime = time_get();
+	// bestclient
 
 	for(int i = 0; i < MAX_KILLMSG_TEAM_MEMBERS; i++)
 	{
@@ -460,6 +463,9 @@ void CInfoMessages::OnRender()
 	const float StartX = Width - 10.0f;
 	const float StartY = 30.0f + (Showfps ? 100.0f : 0.0f) + (g_Config.m_ClShowpred && Client()->State() != IClient::STATE_DEMOPLAYBACK ? 100.0f : 0.0f);
 
+	// bestclient
+	const int64_t Now = time_get();
+	// bestclient
 	float y = StartY;
 	for(int i = 1; i <= MAX_INFOMSGS; i++)
 	{
@@ -474,11 +480,22 @@ void CInfoMessages::OnRender()
 			continue;
 		}
 
+		// bestclient
+		if(g_Config.m_ClFocusMode && g_Config.m_ClFocusModeHideUI)
+			continue;
+		// bestclient
+
 		CreateTextContainersIfNotCreated(InfoMsg);
 
 		if(InfoMsg.m_Type == EType::TYPE_KILL && g_Config.m_ClShowKillMessages)
 		{
-			RenderKillMsg(InfoMsg, StartX, y);
+			// bestclient
+			const float KillMsgSlideOffsetX = GameClient()->m_BcUiAnimations.KillfeedSlideOffsetX(
+				TextRender(), InfoMsg.m_AppearTime, Now,
+				InfoMsg.m_VictimTextContainerIndex, InfoMsg.m_KillerTextContainerIndex,
+				InfoMsg.m_TeamSize, InfoMsg.m_aVictimIds[0], InfoMsg.m_KillerId);
+			RenderKillMsg(InfoMsg, StartX + KillMsgSlideOffsetX, y);
+			// bestclient
 			y += ROW_HEIGHT;
 		}
 		else if(InfoMsg.m_Type == EType::TYPE_FINISH && g_Config.m_ClShowFinishMessages)

@@ -705,12 +705,64 @@ int CSound::LoadOpus(const char *pFilename, int StorageType)
 
 	void *pData;
 	unsigned DataSize;
-	if(!m_pStorage->ReadFile(pFilename, StorageType, &pData, &DataSize))
+	bool bLoaded = false; // bestclient
+	// bestclient: fallback chain custom → default → original.
+	// Determine which pack folder to load from (if any).
+	const char *pEffectivePack = nullptr;
 	{
-		UnloadSample(pSample->m_Index);
-		log_error("sound/opus", "Failed to open file. Filename='%s'", pFilename);
-		return -1;
+		char aPackDir[256];
+		auto FolderExists = [&](const char *pPack) {
+			str_format(aPackDir, sizeof(aPackDir), "assets/audio/%s", pPack);
+			if(m_pStorage->FolderExists(aPackDir, IStorage::TYPE_ALL))
+				return true;
+			str_format(aPackDir, sizeof(aPackDir), "audio/%s", pPack);
+			return m_pStorage->FolderExists(aPackDir, IStorage::TYPE_ALL);
+		};
+		if(FolderExists(g_Config.m_SndPack))
+			pEffectivePack = g_Config.m_SndPack;
+		else if(str_comp(g_Config.m_SndPack, "default") != 0 && FolderExists("default"))
+			pEffectivePack = "default";
 	}
+	if(pEffectivePack != nullptr)
+	{
+		auto TryLoad = [&](const char *pPath) {
+			if(bLoaded)
+				return;
+			if(m_pStorage->ReadFile(pPath, StorageType, &pData, &DataSize))
+				bLoaded = true;
+		};
+
+		char aCustomPath[512];
+		str_format(aCustomPath, sizeof(aCustomPath), "audio/%s/%s", pEffectivePack, pFilename);
+		TryLoad(aCustomPath);
+
+		str_format(aCustomPath, sizeof(aCustomPath), "assets/audio/%s/%s", pEffectivePack, pFilename);
+		TryLoad(aCustomPath);
+
+		if(const char *pSuffix = str_startswith(pFilename, "audio/"))
+		{
+			str_format(aCustomPath, sizeof(aCustomPath), "audio/%s/%s", pEffectivePack, pSuffix);
+			TryLoad(aCustomPath);
+
+			str_format(aCustomPath, sizeof(aCustomPath), "assets/audio/%s/%s", pEffectivePack, pSuffix);
+			TryLoad(aCustomPath);
+		}
+	} // bestclient
+	if(!bLoaded) // bestclient
+	{
+		if(pEffectivePack != nullptr)
+		{
+			// pack exists but this sound is missing → silent, no original fallback
+			UnloadSample(pSample->m_Index);
+			return -1;
+		}
+		if(!m_pStorage->ReadFile(pFilename, StorageType, &pData, &DataSize))
+		{
+			UnloadSample(pSample->m_Index);
+			log_error("sound/opus", "Failed to open file. Filename='%s'", pFilename);
+			return -1;
+		}
+	} // bestclient
 
 	const bool DecodeSuccess = DecodeOpus(*pSample, pData, DataSize, pFilename);
 	free(pData);
@@ -742,12 +794,64 @@ int CSound::LoadWV(const char *pFilename, int StorageType)
 
 	void *pData;
 	unsigned DataSize;
-	if(!m_pStorage->ReadFile(pFilename, StorageType, &pData, &DataSize))
+	bool bLoaded = false; // bestclient
+	// bestclient: fallback chain custom → default → original.
+	// Determine which pack folder to load from (if any).
+	const char *pEffectivePack = nullptr;
 	{
-		UnloadSample(pSample->m_Index);
-		log_error("sound/wv", "Failed to open file. Filename='%s'", pFilename);
-		return -1;
+		char aPackDir[256];
+		auto FolderExists = [&](const char *pPack) {
+			str_format(aPackDir, sizeof(aPackDir), "assets/audio/%s", pPack);
+			if(m_pStorage->FolderExists(aPackDir, IStorage::TYPE_ALL))
+				return true;
+			str_format(aPackDir, sizeof(aPackDir), "audio/%s", pPack);
+			return m_pStorage->FolderExists(aPackDir, IStorage::TYPE_ALL);
+		};
+		if(FolderExists(g_Config.m_SndPack))
+			pEffectivePack = g_Config.m_SndPack;
+		else if(str_comp(g_Config.m_SndPack, "default") != 0 && FolderExists("default"))
+			pEffectivePack = "default";
 	}
+	if(pEffectivePack != nullptr)
+	{
+		auto TryLoad = [&](const char *pPath) {
+			if(bLoaded)
+				return;
+			if(m_pStorage->ReadFile(pPath, StorageType, &pData, &DataSize))
+				bLoaded = true;
+		};
+
+		char aCustomPath[512];
+		str_format(aCustomPath, sizeof(aCustomPath), "audio/%s/%s", pEffectivePack, pFilename);
+		TryLoad(aCustomPath);
+
+		str_format(aCustomPath, sizeof(aCustomPath), "assets/audio/%s/%s", pEffectivePack, pFilename);
+		TryLoad(aCustomPath);
+
+		if(const char *pSuffix = str_startswith(pFilename, "audio/"))
+		{
+			str_format(aCustomPath, sizeof(aCustomPath), "audio/%s/%s", pEffectivePack, pSuffix);
+			TryLoad(aCustomPath);
+
+			str_format(aCustomPath, sizeof(aCustomPath), "assets/audio/%s/%s", pEffectivePack, pSuffix);
+			TryLoad(aCustomPath);
+		}
+	} // bestclient
+	if(!bLoaded) // bestclient
+	{
+		if(pEffectivePack != nullptr)
+		{
+			// pack exists but this sound is missing → silent, no original fallback
+			UnloadSample(pSample->m_Index);
+			return -1;
+		}
+		if(!m_pStorage->ReadFile(pFilename, StorageType, &pData, &DataSize))
+		{
+			UnloadSample(pSample->m_Index);
+			log_error("sound/wv", "Failed to open file. Filename='%s'", pFilename);
+			return -1;
+		}
+	} // bestclient
 
 	const bool DecodeSuccess = DecodeWV(*pSample, pData, DataSize, pFilename);
 	free(pData);

@@ -64,6 +64,10 @@ public:
 	void SkipByFileTime(bool SkipByFileTime) { m_SkipByFileTime = SkipByFileTime; }
 	void IpResolve(IPRESOLVE IpResolve) { m_IpResolve = IpResolve; }
 	void FailOnErrorStatus(bool FailOnErrorStatus) { m_FailOnErrorStatus = FailOnErrorStatus; }
+	// bestclient
+	void VerifyPeer(bool VerifyPeer) { m_VerifyPeer = VerifyPeer; }
+	void AllowHttp(bool AllowHttp) { m_AllowHttp = AllowHttp; }
+	// bestclient
 	// Download to memory only. Get the result via `Result*`.
 	void WriteToMemory();
 	// Download to filesystem and memory.
@@ -152,6 +156,10 @@ protected:
 	bool m_SkipByFileTime = true;
 	IPRESOLVE m_IpResolve = IPRESOLVE::WHATEVER;
 	bool m_FailOnErrorStatus = true;
+	// bestclient
+	bool m_VerifyPeer = true;
+	bool m_AllowHttp = false;
+	// bestclient
 	bool m_ValidateBeforeOverwrite = false;
 	std::optional<SHA256_DIGEST> m_ExpectedSha256 = std::nullopt;
 	int64_t m_IfModifiedSince = -1;

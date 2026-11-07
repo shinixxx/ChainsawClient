@@ -9,6 +9,7 @@
 
 #include <generated/client_data.h>
 
+#include <game/client/components/bestclient/ego_tiles_prediction.h> // bestclient
 #include <game/collision.h>
 #include <game/mapitems.h>
 
@@ -1067,6 +1068,78 @@ void CCharacter::HandleTiles(int Index)
 		if(NewJumps != m_Core.m_Jumps)
 			m_Core.m_Jumps = NewJumps;
 	}
+
+	// bestclient
+	if(!GameWorld()->m_WorldConfig.m_PredictTeleports)
+		return;
+
+	if(m_Core.m_Super || m_Core.m_Invincible)
+		return;
+
+	if(MapIndex != Collision()->GetMapIndex(m_Pos))
+		return;
+
+	const auto TeleportTo = [&](const vec2 &TelePos, bool ResetVelocity, bool ReleaseHooked) {
+		m_Core.m_Pos = TelePos;
+		if(ResetVelocity)
+			m_Core.m_Vel = vec2(0.0f, 0.0f);
+		if(!g_Config.m_SvTeleportHoldHook)
+		{
+			ResetHook();
+			if(ReleaseHooked)
+				GameWorld()->ReleaseHooked(GetCid());
+		}
+		m_Pos = m_Core.m_Pos;
+		m_PrevPos = m_Core.m_Pos;
+		m_PrevPrevPos = m_Core.m_Pos;
+	};
+
+	const int Teleport = Collision()->IsTeleport(MapIndex);
+	if(!g_Config.m_SvOldTeleportHook && !g_Config.m_SvOldTeleportWeapons && Teleport > 0 && !Collision()->TeleOuts(Teleport - 1).empty())
+	{
+		const auto &vTeleOuts = Collision()->TeleOuts(Teleport - 1);
+		const int TeleOut = GameWorld()->m_Core.RandomOr0((int)vTeleOuts.size());
+		TeleportTo(vTeleOuts[TeleOut], false, false);
+		return;
+	}
+
+	const int EvilTeleport = Collision()->IsEvilTeleport(MapIndex);
+	if(EvilTeleport > 0 && !Collision()->TeleOuts(EvilTeleport - 1).empty())
+	{
+		const auto &vTeleOuts = Collision()->TeleOuts(EvilTeleport - 1);
+		const int TeleOut = GameWorld()->m_Core.RandomOr0((int)vTeleOuts.size());
+		TeleportTo(vTeleOuts[TeleOut], !g_Config.m_SvOldTeleportHook && !g_Config.m_SvOldTeleportWeapons, !g_Config.m_SvOldTeleportHook && !g_Config.m_SvOldTeleportWeapons);
+		return;
+	}
+
+	if(Collision()->IsCheckEvilTeleport(MapIndex))
+	{
+		for(int k = m_TeleCheckpoint - 1; k >= 0; k--)
+		{
+			if(Collision()->TeleCheckOuts(k).empty())
+				continue;
+			const auto &vTeleCheckOuts = Collision()->TeleCheckOuts(k);
+			const int TeleOut = GameWorld()->m_Core.RandomOr0((int)vTeleCheckOuts.size());
+			TeleportTo(vTeleCheckOuts[TeleOut], true, true);
+			return;
+		}
+		return;
+	}
+
+	if(Collision()->IsCheckTeleport(MapIndex))
+	{
+		for(int k = m_TeleCheckpoint - 1; k >= 0; k--)
+		{
+			if(Collision()->TeleCheckOuts(k).empty())
+				continue;
+			const auto &vTeleCheckOuts = Collision()->TeleCheckOuts(k);
+			const int TeleOut = GameWorld()->m_Core.RandomOr0((int)vTeleCheckOuts.size());
+			TeleportTo(vTeleCheckOuts[TeleOut], false, false);
+			return;
+		}
+		return;
+	}
+	// bestclient
 }
 
 void CCharacter::HandleTuneLayer()
@@ -1096,6 +1169,14 @@ void CCharacter::DDRaceTick()
 		}
 		if(m_FreezeTime == 1)
 			Unfreeze();
+
+		m_AliveAccumulation = std::min(m_AliveAccumulation - 1, 0);
+		m_AliveAccumulation = std::max(m_AliveAccumulation, -g_Config.m_TcUnfreezeLagDelayTicks);
+	}
+	else
+	{
+		m_AliveAccumulation = std::max(m_AliveAccumulation, 1);
+		m_AliveAccumulation = std::min(m_AliveAccumulation + 1, g_Config.m_TcUnfreezeLagDelayTicks);
 	}
 
 	HandleTuneLayer();
@@ -1114,6 +1195,14 @@ void CCharacter::DDRaceTick()
 			m_Core.m_IsInFreeze = true;
 			break;
 		}
+	}
+	if(m_Core.m_IsInFreeze && IsGrounded())
+	{
+		m_FreezeAccumulation = std::min(m_FreezeAccumulation + 1, g_Config.m_TcUnfreezeLagDelayTicks);
+	}
+	else
+	{
+		m_FreezeAccumulation = std::min(m_FreezeAccumulation, m_FreezeTime);
 	}
 	m_Core.m_IsInFreeze |= (Collision()->GetCollisionAt(m_Pos.x + GetProximityRadius() / 3.f, m_Pos.y - GetProximityRadius() / 3.f) == TILE_DEATH ||
 				Collision()->GetCollisionAt(m_Pos.x + GetProximityRadius() / 3.f, m_Pos.y + GetProximityRadius() / 3.f) == TILE_DEATH ||
@@ -1168,6 +1257,11 @@ void CCharacter::DDRacePostCoreTick()
 
 	int CurrentIndex = Collision()->GetMapIndex(m_Pos);
 	HandleSkippableTiles(CurrentIndex);
+
+	// bestclient
+	if(GameWorld()->m_pEgoTilesPrediction)
+		GameWorld()->m_pEgoTilesPrediction->HandleCharacter(this);
+	// bestclient
 
 	// handle Anti-Skip tiles
 	std::vector<int> vIndices = Collision()->GetMapIndices(m_PrevPos, m_Pos);
@@ -1381,6 +1475,12 @@ void CCharacter::ResetPrediction()
 	}
 	m_LastWeaponSwitchTick = 0;
 	m_LastTuneZoneTick = 0;
+
+	// TClient
+	// TODO: https://github.com/TaterClient/TClient/issues/201
+	m_TuneZone = 0;
+	m_TuneZoneOverride = TuneZone::OVERRIDE_NONE;
+
 	m_Interfering = false;
 }
 

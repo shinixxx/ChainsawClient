@@ -377,6 +377,21 @@ int net_tcp_connect(NETSOCKET sock, const NETADDR *addr);
  */
 int net_tcp_connect_non_blocking(NETSOCKET sock, NETADDR bindaddr);
 
+// bestclient
+/**
+ * Connects a TCP socket with a timeout.
+ *
+ * @ingroup Network-TCP
+ *
+ * @param sock Socket to connect.
+ * @param addr Address to connect to.
+ * @param TimeoutMs Timeout in milliseconds.
+ *
+ * @return `0` on success.
+ */
+int net_tcp_connect_timeout(NETSOCKET sock, const NETADDR *addr, int TimeoutMs);
+// bestclient
+
 /**
  * Sends data to a TCP stream.
  *

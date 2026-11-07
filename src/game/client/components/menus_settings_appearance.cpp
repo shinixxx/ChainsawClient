@@ -132,11 +132,19 @@ void CMenus::RenderSettingsAppearance(CUIRect MainView)
 		DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_ClShowhudDummyActions, Localize("Show dummy actions"), &g_Config.m_ClShowhudDummyActions, &RightView, LineSize);
 
 		// Player movement information display settings
+		RightView.HSplitTop(MarginSmall, nullptr, &RightView); // TClient
 		DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_ClShowhudPlayerPosition, Localize("Show player position"), &g_Config.m_ClShowhudPlayerPosition, &RightView, LineSize);
 		DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_ClShowhudPlayerSpeed, Localize("Show player speed"), &g_Config.m_ClShowhudPlayerSpeed, &RightView, LineSize);
 		DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_ClShowhudPlayerAngle, Localize("Show player target angle"), &g_Config.m_ClShowhudPlayerAngle, &RightView, LineSize);
 
+		// Dummy movement information display settings
+		RightView.HSplitTop(MarginSmall, nullptr, &RightView); // TClient
+		DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_TcShowhudDummyPosition, TCLocalize("Show dummy position"), &g_Config.m_TcShowhudDummyPosition, &RightView, LineSize);
+		DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_TcShowhudDummySpeed, TCLocalize("Show dummy speed"), &g_Config.m_TcShowhudDummySpeed, &RightView, LineSize);
+		DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_TcShowhudDummyAngle, TCLocalize("Show dummy target angle"), &g_Config.m_TcShowhudDummyAngle, &RightView, LineSize);
+
 		// Freeze bar settings
+		RightView.HSplitTop(MarginSmall, nullptr, &RightView); // TClient
 		DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_ClShowFreezeBars, Localize("Show freeze bars"), &g_Config.m_ClShowFreezeBars, &RightView, LineSize);
 		RightView.HSplitTop(LineSize * 2.0f, &Button, &RightView);
 		if(g_Config.m_ClShowFreezeBars)
@@ -174,6 +182,9 @@ void CMenus::RenderSettingsAppearance(CUIRect MainView)
 		DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_ClChatTeamColors, Localize("Show names in chat in team colors"), &g_Config.m_ClChatTeamColors, &LeftView, LineSize);
 		DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_ClShowChatFriends, Localize("Show only chat messages from friends"), &g_Config.m_ClShowChatFriends, &LeftView, LineSize);
 		DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_ClShowChatTeamMembersOnly, Localize("Show only chat messages from team members"), &g_Config.m_ClShowChatTeamMembersOnly, &LeftView, LineSize);
+		// bestclient
+		DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_BcChatOnlyTagsAndWhispers, Localize("Show only tags and private messages"), &g_Config.m_BcChatOnlyTagsAndWhispers, &LeftView, LineSize);
+		// bestclient
 
 		if(DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_ClChatOld, Localize("Use old chat style"), &g_Config.m_ClChatOld, &LeftView, LineSize))
 			GameClient()->m_Chat.RebuildChat();
@@ -216,7 +227,7 @@ void CMenus::RenderSettingsAppearance(CUIRect MainView)
 
 		str_format(aBuf, sizeof(aBuf), "%s (echo)", Localize("Client message"));
 		static CButtonContainer s_ClientMessageColor;
-		DoLine_ColorPicker(&s_ClientMessageColor, ColorPickerLineSize, ColorPickerLabelSize, ColorPickerLineSpacing, &RightView, aBuf, &g_Config.m_ClMessageClientColor, ColorRGBA(0.5f, 0.78f, 1.0f));
+		DoLine_ColorPicker(&s_ClientMessageColor, ColorPickerLineSize, ColorPickerLabelSize, ColorPickerLineSpacing, &RightView, aBuf, &g_Config.m_ClMessageClientColor, ColorRGBA(0.5f, 0.78f, 1.0f), true, &g_Config.m_TcShowChatClient); // TClient
 
 		// ***** Chat Preview ***** //
 		Ui()->DoLabel_AutoLineSize(Localize("Preview"), HeadlineFontSize,
@@ -285,7 +296,10 @@ void CMenus::RenderSettingsAppearance(CUIRect MainView)
 			PREVIEW_TEAM,
 			PREVIEW_FRIEND,
 			PREVIEW_SPAMMER,
-			PREVIEW_CLIENT
+			PREVIEW_CLIENT,
+			// bestclient
+			PREVIEW_WHISPER
+			// bestclient
 		};
 		auto &&SetPreviewLine = [](int Index, int ClientId, const char *pName, const char *pText, int Flag, int Repeats) {
 			SPreviewLine *pLine;
@@ -418,12 +432,20 @@ void CMenus::RenderSettingsAppearance(CUIRect MainView)
 			SetPreviewLine(PREVIEW_FRIEND, 8, "Friend", "Hello there", FLAG_FRIEND, 0);
 			SetPreviewLine(PREVIEW_SPAMMER, 9, "Spammer", "Hey fools, I'm spamming here!", 0, 5);
 			SetPreviewLine(PREVIEW_CLIENT, -1, "— ", "Echo command executed", FLAG_CLIENT, 0);
+			// bestclient
+			SetPreviewLine(PREVIEW_WHISPER, 10, "← Random Tee", "This is a private message", FLAG_HIGHLIGHT, 0);
+			// bestclient
 		}
 
 		SetLineSkin(1, GameClient()->m_Skins.Find("pinky"));
 		SetLineSkin(2, GameClient()->m_Skins.Find("default"));
 		SetLineSkin(3, GameClient()->m_Skins.Find("cammostripes"));
 		SetLineSkin(4, GameClient()->m_Skins.Find("beast"));
+		// bestclient
+		SetLineSkin(PREVIEW_WHISPER, GameClient()->m_Skins.Find("default"));
+
+		const bool ShowOnlyTagsAndWhispers = g_Config.m_BcChatOnlyTagsAndWhispers != 0;
+		// bestclient
 
 		// Backgrounds first
 		if(!g_Config.m_ClChatOld)
@@ -441,66 +463,93 @@ void CMenus::RenderSettingsAppearance(CUIRect MainView)
 				return Size.y;
 			};
 
-			if(g_Config.m_ClShowChatSystem)
+			// bestclient
+			if(ShowOnlyTagsAndWhispers)
 			{
-				TempY += RenderMessageBackground(PREVIEW_SYS);
+				TempY += RenderMessageBackground(PREVIEW_HIGHLIGHT);
+				TempY += RenderMessageBackground(PREVIEW_WHISPER);
 			}
-
-			if(!g_Config.m_ClShowChatFriends)
+			else
 			{
+				if(g_Config.m_ClShowChatSystem)
+				{
+					TempY += RenderMessageBackground(PREVIEW_SYS);
+				}
+
+				if(!g_Config.m_ClShowChatFriends)
+				{
+					if(!g_Config.m_ClShowChatTeamMembersOnly)
+						TempY += RenderMessageBackground(PREVIEW_HIGHLIGHT);
+					TempY += RenderMessageBackground(PREVIEW_TEAM);
+				}
+
 				if(!g_Config.m_ClShowChatTeamMembersOnly)
-					TempY += RenderMessageBackground(PREVIEW_HIGHLIGHT);
-				TempY += RenderMessageBackground(PREVIEW_TEAM);
+					TempY += RenderMessageBackground(PREVIEW_FRIEND);
+
+				if(!g_Config.m_ClShowChatFriends && !g_Config.m_ClShowChatTeamMembersOnly)
+				{
+					TempY += RenderMessageBackground(PREVIEW_SPAMMER);
+				}
+
+				if(g_Config.m_TcShowChatClient)
+					TempY += RenderMessageBackground(PREVIEW_CLIENT);
 			}
-
-			if(!g_Config.m_ClShowChatTeamMembersOnly)
-				TempY += RenderMessageBackground(PREVIEW_FRIEND);
-
-			if(!g_Config.m_ClShowChatFriends && !g_Config.m_ClShowChatTeamMembersOnly)
-			{
-				TempY += RenderMessageBackground(PREVIEW_SPAMMER);
-			}
-
-			TempY += RenderMessageBackground(PREVIEW_CLIENT);
+			// bestclient
 
 			Graphics()->QuadsEnd();
 		}
 
-		// System
-		if(g_Config.m_ClShowChatSystem)
+		// bestclient
+		if(ShowOnlyTagsAndWhispers)
 		{
-			Y += RenderPreview(PREVIEW_SYS, X, Y).y;
-		}
-
-		if(!g_Config.m_ClShowChatFriends)
-		{
-			// Highlighted
-			if(!g_Config.m_ClChatOld && !g_Config.m_ClShowChatTeamMembersOnly)
+			if(!g_Config.m_ClChatOld)
 				RenderTools()->RenderTee(pIdleState, &s_vLines[PREVIEW_HIGHLIGHT].m_RenderInfo, EMOTE_NORMAL, vec2(1, 0.1f), vec2(X + RealTeeSizeHalved, Y + OffsetTeeY + FullHeightMinusTee / 2.0f + TWSkinUnreliableOffset));
-			if(!g_Config.m_ClShowChatTeamMembersOnly)
-				Y += RenderPreview(PREVIEW_HIGHLIGHT, X, Y).y;
+			Y += RenderPreview(PREVIEW_HIGHLIGHT, X, Y).y;
 
-			// Team
 			if(!g_Config.m_ClChatOld)
-				RenderTools()->RenderTee(pIdleState, &s_vLines[PREVIEW_TEAM].m_RenderInfo, EMOTE_NORMAL, vec2(1, 0.1f), vec2(X + RealTeeSizeHalved, Y + OffsetTeeY + FullHeightMinusTee / 2.0f + TWSkinUnreliableOffset));
-			Y += RenderPreview(PREVIEW_TEAM, X, Y).y;
+				RenderTools()->RenderTee(pIdleState, &s_vLines[PREVIEW_WHISPER].m_RenderInfo, EMOTE_NORMAL, vec2(1, 0.1f), vec2(X + RealTeeSizeHalved, Y + OffsetTeeY + FullHeightMinusTee / 2.0f + TWSkinUnreliableOffset));
+			RenderPreview(PREVIEW_WHISPER, X, Y);
 		}
-
-		// Friend
-		if(!g_Config.m_ClChatOld && !g_Config.m_ClShowChatTeamMembersOnly)
-			RenderTools()->RenderTee(pIdleState, &s_vLines[PREVIEW_FRIEND].m_RenderInfo, EMOTE_NORMAL, vec2(1, 0.1f), vec2(X + RealTeeSizeHalved, Y + OffsetTeeY + FullHeightMinusTee / 2.0f + TWSkinUnreliableOffset));
-		if(!g_Config.m_ClShowChatTeamMembersOnly)
-			Y += RenderPreview(PREVIEW_FRIEND, X, Y).y;
-
-		// Normal
-		if(!g_Config.m_ClShowChatFriends && !g_Config.m_ClShowChatTeamMembersOnly)
+		else
 		{
-			if(!g_Config.m_ClChatOld)
-				RenderTools()->RenderTee(pIdleState, &s_vLines[PREVIEW_SPAMMER].m_RenderInfo, EMOTE_NORMAL, vec2(1, 0.1f), vec2(X + RealTeeSizeHalved, Y + OffsetTeeY + FullHeightMinusTee / 2.0f + TWSkinUnreliableOffset));
-			Y += RenderPreview(PREVIEW_SPAMMER, X, Y).y;
+			// System
+			if(g_Config.m_ClShowChatSystem)
+			{
+				Y += RenderPreview(PREVIEW_SYS, X, Y).y;
+			}
+
+			if(!g_Config.m_ClShowChatFriends)
+			{
+				// Highlighted
+				if(!g_Config.m_ClChatOld && !g_Config.m_ClShowChatTeamMembersOnly)
+					RenderTools()->RenderTee(pIdleState, &s_vLines[PREVIEW_HIGHLIGHT].m_RenderInfo, EMOTE_NORMAL, vec2(1, 0.1f), vec2(X + RealTeeSizeHalved, Y + OffsetTeeY + FullHeightMinusTee / 2.0f + TWSkinUnreliableOffset));
+				if(!g_Config.m_ClShowChatTeamMembersOnly)
+					Y += RenderPreview(PREVIEW_HIGHLIGHT, X, Y).y;
+
+				// Team
+				if(!g_Config.m_ClChatOld)
+					RenderTools()->RenderTee(pIdleState, &s_vLines[PREVIEW_TEAM].m_RenderInfo, EMOTE_NORMAL, vec2(1, 0.1f), vec2(X + RealTeeSizeHalved, Y + OffsetTeeY + FullHeightMinusTee / 2.0f + TWSkinUnreliableOffset));
+				Y += RenderPreview(PREVIEW_TEAM, X, Y).y;
+			}
+
+			// Friend
+			if(!g_Config.m_ClChatOld && !g_Config.m_ClShowChatTeamMembersOnly)
+				RenderTools()->RenderTee(pIdleState, &s_vLines[PREVIEW_FRIEND].m_RenderInfo, EMOTE_NORMAL, vec2(1, 0.1f), vec2(X + RealTeeSizeHalved, Y + OffsetTeeY + FullHeightMinusTee / 2.0f + TWSkinUnreliableOffset));
+			if(!g_Config.m_ClShowChatTeamMembersOnly)
+				Y += RenderPreview(PREVIEW_FRIEND, X, Y).y;
+
+			// Normal
+			if(!g_Config.m_ClShowChatFriends && !g_Config.m_ClShowChatTeamMembersOnly)
+			{
+				if(!g_Config.m_ClChatOld)
+					RenderTools()->RenderTee(pIdleState, &s_vLines[PREVIEW_SPAMMER].m_RenderInfo, EMOTE_NORMAL, vec2(1, 0.1f), vec2(X + RealTeeSizeHalved, Y + OffsetTeeY + FullHeightMinusTee / 2.0f + TWSkinUnreliableOffset));
+				Y += RenderPreview(PREVIEW_SPAMMER, X, Y).y;
+			}
+			// Client
+			if(g_Config.m_TcShowChatClient)
+				RenderPreview(PREVIEW_CLIENT, X, Y);
 		}
-		// Client
-		RenderPreview(PREVIEW_CLIENT, X, Y);
+		// bestclient
 
 		TextRender()->TextColor(TextRender()->DefaultTextColor());
 	}

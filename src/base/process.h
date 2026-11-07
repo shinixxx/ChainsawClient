@@ -77,6 +77,18 @@ int process_kill(PROCESS process);
  * @return `false` if the process is not running (dead).
  */
 bool process_is_alive(PROCESS process);
+
+/**
+ * bestclient: a process we did not start, to ask @ref process_is_alive about. The handle stays with us, so the id
+ * going to another process later does not matter.
+ *
+ * @ingroup Process
+ *
+ * @param pid Id of the process.
+ *
+ * @return The handle, or `INVALID_PROCESS` if it cannot be watched.
+ */
+PROCESS process_watch(int pid);
 #endif // !defined(CONF_PLATFORM_ANDROID)
 
 #endif

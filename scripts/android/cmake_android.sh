@@ -139,6 +139,11 @@ function build_for_type() {
 		build_ipo=ON
 	fi
 
+	# TClient
+	if [ -f versioninfo.h ]; then
+		build_extra_cflags="${build_extra_cflags} -include$(pwd)/versioninfo.h"
+	fi
+
 	cmake \
 		-H. \
 		-G "Ninja" \

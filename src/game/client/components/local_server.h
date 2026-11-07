@@ -16,6 +16,7 @@ public:
 	void KillServer();
 	bool IsServerRunning();
 	bool IsStarting() const { return m_WaitingForPort; }
+	int Port() const { return m_Port; } // bestclient
 	void Update();
 	void RconAuthIfPossible();
 	void Connect();

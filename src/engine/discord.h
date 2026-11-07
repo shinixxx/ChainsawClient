@@ -11,14 +11,19 @@ class IDiscord : public IInterface
 {
 	MACRO_INTERFACE("discord")
 public:
-	virtual void Update() = 0;
+	virtual void Update(bool Enabled) = 0;
 
 	virtual void ClearGameInfo() = 0;
-	virtual void SetGameInfo(const CServerInfo &ServerInfo, bool Registered) = 0;
-	virtual void UpdateServerInfo(const CServerInfo &ServerInfo) = 0;
+	// bestclient
+	virtual void SetGameInfo(const CServerInfo &ServerInfo, const char *pMapName, const char *pPlayerName, const char *pSkinName, bool ShowMap, bool Registered) = 0;
+	virtual void UpdateServerInfo(const CServerInfo &ServerInfo, const char *pMapName, const char *pPlayerName, const char *pSkinName) = 0;
+	// bestclient
 	virtual void UpdatePlayerCount(int Count) = 0;
 };
 
+// bestclient
+IDiscord *CreateBestClientDiscord();
+// bestclient
 IDiscord *CreateDiscord();
 
 #endif // ENGINE_DISCORD_H

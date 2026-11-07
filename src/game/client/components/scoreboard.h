@@ -55,6 +55,26 @@ class CScoreboard : public CComponent
 		CButtonContainer m_EmoticonAction;
 
 		CButtonContainer m_SpectateButton;
+		// bestclient
+		CButtonContainer m_TeamAction;
+		CButtonContainer m_WarAction;
+		CButtonContainer m_ProfileButton;
+		CButtonContainer m_WhisperButton;
+		CButtonContainer m_CopySkinButton;
+		CButtonContainer m_VoteKickButton;
+		CButtonContainer m_FindHoursButton;
+		CButtonContainer m_ClipNameButton;
+		CButtonContainer m_SwapButton;
+		CButtonContainer m_VoiceMuteButton;
+		CButtonContainer m_VoiceVolumeSlider;
+		CButtonContainer m_TeamExitButton;
+		CButtonContainer m_TeamJoinButton;
+		CButtonContainer m_TeamInviteButton;
+		CButtonContainer m_TeamKickButton;
+		CButtonContainer m_TeamLockButton;
+		int m_VoiceVolumePreview = -1;
+		bool m_VoiceVolumeDirty = false;
+		// bestclient
 
 		int m_ClientId;
 		bool m_IsLocal;
@@ -83,6 +103,7 @@ class CScoreboard : public CComponent
 		CCachedText m_Score;
 		CCachedText m_ScoreMillis;
 		CCachedText m_Name;
+		CCachedText m_MuteMark;
 		CCachedText m_ReadyMark;
 		CCachedText m_Clan;
 		CCachedText m_Ping;
@@ -95,8 +116,6 @@ class CScoreboard : public CComponent
 	CCachedText m_HeadlineName;
 	CCachedText m_HeadlineClan;
 	CCachedText m_HeadlinePing;
-
-	void ResetTexts();
 
 public:
 	CScoreboard();
@@ -112,6 +131,11 @@ public:
 	bool OnInput(const IInput::CEvent &Event) override;
 
 	bool IsActive() const;
+	// bestclient
+	bool IsShown() const;
+	void ResetTexts();
+	bool IsMouseUnlocked() const { return IsActive() && m_MouseUnlocked; }
+	// bestclient
 };
 
 #endif

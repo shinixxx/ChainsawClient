@@ -128,4 +128,15 @@ bool process_is_alive(PROCESS process)
 #endif
 }
 
+// bestclient
+PROCESS process_watch(int pid)
+{
+#if defined(CONF_FAMILY_WINDOWS)
+	HANDLE handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)pid);
+	return handle ? handle : INVALID_PROCESS;
+#else
+	return INVALID_PROCESS;
+#endif
+}
+
 #endif // !defined(CONF_PLATFORM_ANDROID)

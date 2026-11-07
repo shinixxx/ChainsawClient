@@ -22,6 +22,10 @@
 #include <vulkan/vulkan_core.h>
 
 #include <algorithm>
+// bestclient
+#include <cmath>
+#include <game/client/components/bestclient/motion_blur.h>
+// bestclient
 #include <array>
 #include <condition_variable>
 #include <cstddef>
@@ -38,6 +42,57 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+// bestclient
+static void LogVulkanFailure(const char *pOp, int Result, uint32_t CanvasWidth, uint32_t CanvasHeight, bool Paused, uint32_t SwapWidth, uint32_t SwapHeight)
+{
+	log_error("bestclient", "vulkan %s result=%d fullscreen=%d borderless=%d canvas=%ux%u paused=%d swap=%ux%u", pOp, Result, g_Config.m_GfxFullscreen, g_Config.m_GfxBorderless, CanvasWidth, CanvasHeight, Paused ? 1 : 0, SwapWidth, SwapHeight);
+}
+
+static const char *VulkanPresentModeName(VkPresentModeKHR Mode)
+{
+	switch(Mode)
+	{
+	case VK_PRESENT_MODE_IMMEDIATE_KHR: return "immediate";
+	case VK_PRESENT_MODE_MAILBOX_KHR: return "mailbox";
+	case VK_PRESENT_MODE_FIFO_KHR: return "fifo";
+	case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return "fifo_relaxed";
+	default: return "other";
+	}
+}
+
+static const char *VulkanCompositeAlphaName(VkCompositeAlphaFlagBitsKHR Alpha)
+{
+	switch(Alpha)
+	{
+	case VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR: return "opaque";
+	case VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR: return "pre_multiplied";
+	case VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR: return "post_multiplied";
+	case VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR: return "inherit";
+	default: return "other";
+	}
+}
+
+static void LogVulkanSwapChain(VkPresentModeKHR PresentMode, VkCompositeAlphaFlagBitsKHR Alpha, uint32_t SwapWidth, uint32_t SwapHeight, SDL_Window *pWindow)
+{
+	int WindowWidth = 0;
+	int WindowHeight = 0;
+	int DesktopWidth = 0;
+	int DesktopHeight = 0;
+	if(pWindow != nullptr)
+	{
+		SDL_GetWindowSize(pWindow, &WindowWidth, &WindowHeight);
+		const int DisplayIndex = SDL_GetWindowDisplayIndex(pWindow);
+		SDL_DisplayMode DesktopMode;
+		if(DisplayIndex >= 0 && SDL_GetDesktopDisplayMode(DisplayIndex, &DesktopMode) == 0)
+		{
+			DesktopWidth = DesktopMode.w;
+			DesktopHeight = DesktopMode.h;
+		}
+	}
+	log_info("bestclient", "vulkan swapchain backend=%s present=%s alpha=%s window=%dx%d desktop=%dx%d swap=%ux%u fullscreen=%d borderless=%d vsync=%d", g_Config.m_GfxBackend, VulkanPresentModeName(PresentMode), VulkanCompositeAlphaName(Alpha), WindowWidth, WindowHeight, DesktopWidth, DesktopHeight, SwapWidth, SwapHeight, g_Config.m_GfxFullscreen, g_Config.m_GfxBorderless, g_Config.m_GfxVsync);
+}
+// bestclient
 
 // Set on render worker threads so that memory-allocation recovery (which drives
 // the frame loop and issues queue submit/present) is only ever attempted on the
@@ -860,6 +915,10 @@ class CCommandProcessorFragment_Vulkan : public CCommandProcessorFragment_GLBase
 		VkImageView m_ImgView = VK_NULL_HANDLE;
 	};
 
+	// bestclient
+#include <game/client/components/bestclient/motion_blur_vulkan_members.inl>
+	// bestclient
+
 	/************************
 	 * MEMBER VARIABLES
 	 ************************/
@@ -963,6 +1022,9 @@ class CCommandProcessorFragment_Vulkan : public CCommandProcessorFragment_GLBase
 private:
 	std::vector<VkImageView> m_vSwapChainImageViewList;
 	std::vector<SSwapChainMultiSampleImage> m_vSwapChainMultiSamplingImages;
+	// bestclient
+#include <game/client/components/bestclient/motion_blur_vulkan_state.inl>
+	// bestclient
 	std::vector<VkFramebuffer> m_vFramebufferList;
 	std::vector<VkCommandBuffer> m_vMainDrawCommandBuffers;
 
@@ -1309,6 +1371,7 @@ protected:
 		m_aCommandCallbacks[CommandBufferCMDOff(CCommandBuffer::CMD_TEXT_TEXTURES_CREATE)] = {false, [](SRenderCommandExecuteBuffer &ExecBuffer, const CCommandBuffer::SCommand *pBaseCommand) {}, [this](const CCommandBuffer::SCommand *pBaseCommand, SRenderCommandExecuteBuffer &ExecBuffer) { return Cmd_TextTextures_Create(static_cast<const CCommandBuffer::SCommand_TextTextures_Create *>(pBaseCommand)); }};
 		m_aCommandCallbacks[CommandBufferCMDOff(CCommandBuffer::CMD_TEXT_TEXTURES_DESTROY)] = {false, [](SRenderCommandExecuteBuffer &ExecBuffer, const CCommandBuffer::SCommand *pBaseCommand) {}, [this](const CCommandBuffer::SCommand *pBaseCommand, SRenderCommandExecuteBuffer &ExecBuffer) { return Cmd_TextTextures_Destroy(static_cast<const CCommandBuffer::SCommand_TextTextures_Destroy *>(pBaseCommand)); }};
 		m_aCommandCallbacks[CommandBufferCMDOff(CCommandBuffer::CMD_TEXT_TEXTURE_UPDATE)] = {false, [](SRenderCommandExecuteBuffer &ExecBuffer, const CCommandBuffer::SCommand *pBaseCommand) {}, [this](const CCommandBuffer::SCommand *pBaseCommand, SRenderCommandExecuteBuffer &ExecBuffer) { return Cmd_TextTexture_Update(static_cast<const CCommandBuffer::SCommand_TextTexture_Update *>(pBaseCommand)); }};
+		m_aCommandCallbacks[CommandBufferCMDOff(CCommandBuffer::CMD_TEXTURE_UPDATE)] = {false, [](SRenderCommandExecuteBuffer &ExecBuffer, const CCommandBuffer::SCommand *pBaseCommand) {}, [this](const CCommandBuffer::SCommand *pBaseCommand, SRenderCommandExecuteBuffer &ExecBuffer) { return Cmd_Texture_Update(static_cast<const CCommandBuffer::SCommand_Texture_Update *>(pBaseCommand)); }};
 
 		m_aCommandCallbacks[CommandBufferCMDOff(CCommandBuffer::CMD_CLEAR)] = {true, [this](SRenderCommandExecuteBuffer &ExecBuffer, const CCommandBuffer::SCommand *pBaseCommand) { Cmd_Clear_FillExecuteBuffer(ExecBuffer, static_cast<const CCommandBuffer::SCommand_Clear *>(pBaseCommand)); }, [this](const CCommandBuffer::SCommand *pBaseCommand, SRenderCommandExecuteBuffer &ExecBuffer) { return Cmd_Clear(ExecBuffer, static_cast<const CCommandBuffer::SCommand_Clear *>(pBaseCommand)); }};
 		m_aCommandCallbacks[CommandBufferCMDOff(CCommandBuffer::CMD_RENDER)] = {true, [this](SRenderCommandExecuteBuffer &ExecBuffer, const CCommandBuffer::SCommand *pBaseCommand) { Cmd_Render_FillExecuteBuffer(ExecBuffer, static_cast<const CCommandBuffer::SCommand_Render *>(pBaseCommand)); }, [this](const CCommandBuffer::SCommand *pBaseCommand, SRenderCommandExecuteBuffer &ExecBuffer) { return Cmd_Render(static_cast<const CCommandBuffer::SCommand_Render *>(pBaseCommand), ExecBuffer); }};
@@ -2318,7 +2381,23 @@ protected:
 			}
 		}
 
+		// bestclient
+		const bool FrameBlendEnabled = BcMotionBlurEnabled();
+		if(FrameBlendEnabled != m_FrameBlendEnabledLastFrame)
+		{
+			ResetFrameBlendHistory();
+			m_FrameBlendEnabledLastFrame = FrameBlendEnabled;
+		}
+		if(FrameBlendEnabled && !RenderFrameBlend(CommandBuffer))
+			return false;
+		// bestclient
+
 		vkCmdEndRenderPass(CommandBuffer);
+
+		// bestclient
+		if(FrameBlendEnabled)
+			CopyFrameToFrameBlendHistory(CommandBuffer);
+		// bestclient
 
 		if(vkEndCommandBuffer(CommandBuffer) != VK_SUCCESS)
 		{
@@ -2362,6 +2441,9 @@ protected:
 		VkResult QueueSubmitRes = vkQueueSubmit(m_VKGraphicsQueue, 1, &SubmitInfo, m_vQueueSubmitFences[m_CurImageIndex]);
 		if(QueueSubmitRes != VK_SUCCESS)
 		{
+			// bestclient
+			LogVulkanFailure("submit", (int)QueueSubmitRes, m_CanvasWidth, m_CanvasHeight, m_RenderingPaused, m_VKSwapImgAndViewportExtent.m_SwapImageViewport.width, m_VKSwapImgAndViewportExtent.m_SwapImageViewport.height);
+			// bestclient
 			const char *pCritErrorMsg = CheckVulkanCriticalError(QueueSubmitRes);
 			if(pCritErrorMsg != nullptr)
 			{
@@ -2389,6 +2471,9 @@ protected:
 		VkResult QueuePresentRes = vkQueuePresentKHR(m_VKPresentQueue, &PresentInfo);
 		if(QueuePresentRes != VK_SUCCESS && QueuePresentRes != VK_SUBOPTIMAL_KHR)
 		{
+			// bestclient
+			LogVulkanFailure("present", (int)QueuePresentRes, m_CanvasWidth, m_CanvasHeight, m_RenderingPaused, m_VKSwapImgAndViewportExtent.m_SwapImageViewport.width, m_VKSwapImgAndViewportExtent.m_SwapImageViewport.height);
+			// bestclient
 			const char *pCritErrorMsg = CheckVulkanCriticalError(QueuePresentRes);
 			if(pCritErrorMsg != nullptr)
 			{
@@ -2415,6 +2500,9 @@ protected:
 		auto AcqResult = vkAcquireNextImageKHR(m_VKDevice, m_VKSwapChain, std::numeric_limits<uint64_t>::max(), m_AcquireImageSemaphore, VK_NULL_HANDLE, &m_CurImageIndex);
 		if(AcqResult != VK_SUCCESS)
 		{
+			// bestclient
+			LogVulkanFailure("acquire", (int)AcqResult, m_CanvasWidth, m_CanvasHeight, m_RenderingPaused, m_VKSwapImgAndViewportExtent.m_SwapImageViewport.width, m_VKSwapImgAndViewportExtent.m_SwapImageViewport.height);
+			// bestclient
 			if(AcqResult == VK_ERROR_OUT_OF_DATE_KHR || m_RecreateSwapChain)
 			{
 				m_RecreateSwapChain = false;
@@ -2475,6 +2563,15 @@ protected:
 			SetError(EGfxErrorType::GFX_ERROR_TYPE_RENDER_RECORDING, "Command buffer cannot be filled anymore.");
 			return false;
 		}
+
+		// bestclient
+		if(BcMotionBlurEnabled() && m_LastPresentedSwapChainImageIndex != std::numeric_limits<decltype(m_LastPresentedSwapChainImageIndex)>::max() && m_LastPresentedSwapChainImageIndex != m_CurImageIndex)
+		{
+			auto &HistoryImage = m_vFrameBlendImages[m_LastPresentedSwapChainImageIndex];
+			if(HistoryImage.m_Valid)
+				FrameBlendImageBarrier(CommandBuffer, HistoryImage.m_Image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		}
+		// bestclient
 
 		VkRenderPassBeginInfo RenderPassInfo{};
 		RenderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -4177,7 +4274,7 @@ public:
 		VkExtent2D AutoViewportExtent = RetSize;
 		bool UsesForcedViewport = false;
 		// keep this in sync with graphics_threaded AdjustViewport's check
-		if(AutoViewportExtent.height > 4 * AutoViewportExtent.width / 5)
+		if(AutoViewportExtent.height > 4 * AutoViewportExtent.width / 5 && g_GraphicsForcedAspect)
 		{
 			AutoViewportExtent.height = 4 * AutoViewportExtent.width / 5;
 			UsesForcedViewport = true;
@@ -4331,6 +4428,10 @@ public:
 		{
 			return false;
 		}
+
+		// bestclient
+		LogVulkanSwapChain(PresentMode, SwapInfo.compositeAlpha, SwapInfo.imageExtent.width, SwapInfo.imageExtent.height, m_pWindow);
+		// bestclient
 
 		return true;
 	}
@@ -4514,6 +4615,10 @@ public:
 		}
 		m_vSwapChainMultiSamplingImages.clear();
 	}
+
+	// bestclient
+#include <game/client/components/bestclient/motion_blur_vulkan.inl>
+	// bestclient
 
 	[[nodiscard]] bool CreateRenderPass(bool ClearAttachments)
 	{
@@ -5437,6 +5542,18 @@ public:
 					return false;
 				}
 			}
+
+			// bestclient
+			m_vFrameBlendCommandBuffers.resize(m_SwapChainImageCount);
+			AllocInfo.commandPool = m_vCommandPools[0];
+			AllocInfo.commandBufferCount = (uint32_t)m_vFrameBlendCommandBuffers.size();
+			AllocInfo.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+			if(vkAllocateCommandBuffers(m_VKDevice, &AllocInfo, m_vFrameBlendCommandBuffers.data()) != VK_SUCCESS)
+			{
+				SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "Allocating frame blend command buffers failed.");
+				return false;
+			}
+			// bestclient
 		}
 
 		return true;
@@ -5452,6 +5569,10 @@ public:
 				vkFreeCommandBuffers(m_VKDevice, m_vCommandPools[Count], static_cast<uint32_t>(ThreadDrawCommandBuffers.size()), ThreadDrawCommandBuffers.data());
 				++Count;
 			}
+
+			// bestclient
+			vkFreeCommandBuffers(m_VKDevice, m_vCommandPools[0], static_cast<uint32_t>(m_vFrameBlendCommandBuffers.size()), m_vFrameBlendCommandBuffers.data());
+			// bestclient
 		}
 
 		vkFreeCommandBuffers(m_VKDevice, m_vCommandPools[0], static_cast<uint32_t>(m_vMemoryCommandBuffers.size()), m_vMemoryCommandBuffers.data());
@@ -5460,6 +5581,9 @@ public:
 		m_vvThreadDrawCommandBuffers.clear();
 		m_vvUsedThreadDrawCommandBuffer.clear();
 		m_vHelperThreadDrawCommandBuffers.clear();
+		// bestclient
+		m_vFrameBlendCommandBuffers.clear();
+		// bestclient
 
 		m_vMainDrawCommandBuffers.clear();
 		m_vMemoryCommandBuffers.clear();
@@ -5555,6 +5679,10 @@ public:
 		DestroyFramebuffers();
 
 		DestroyRenderPass();
+
+		// bestclient
+		DestroyFrameBlendImages();
+		// bestclient
 
 		DestroyMultiSamplerImageAttachments();
 
@@ -5693,6 +5821,14 @@ public:
 
 		if(!m_SwapchainCreated)
 			Ret = InitVulkanSwapChain(OldSwapChain);
+
+		// bestclient
+		if(Ret == 0 && OldSwapChainImageCount == m_SwapChainImageCount)
+		{
+			if(!CreateFrameBlendImages())
+				Ret = -1;
+		}
+		// bestclient
 
 		if(OldSwapChainImageCount != m_SwapChainImageCount)
 		{
@@ -6286,6 +6422,11 @@ public:
 				return -1;
 		}
 
+		// bestclient
+		if(!CreateFrameBlendImages())
+			return -1;
+		// bestclient
+
 		m_vStreamedVertexBuffers.resize(m_ThreadCount);
 		m_vStreamedUniformBuffers.resize(m_ThreadCount);
 		for(size_t i = 0; i < m_ThreadCount; ++i)
@@ -6842,6 +6983,19 @@ public:
 		uint8_t *pData = pCommand->m_pData;
 
 		if(!UpdateTexture(IndexTex, VK_FORMAT_R8_UNORM, pData, pCommand->m_X, pCommand->m_Y, pCommand->m_Width, pCommand->m_Height))
+			return false;
+
+		free(pData);
+
+		return true;
+	}
+
+	[[nodiscard]] bool Cmd_Texture_Update(const CCommandBuffer::SCommand_Texture_Update *pCommand)
+	{
+		size_t IndexTex = pCommand->m_Slot;
+		uint8_t *pData = pCommand->m_pData;
+
+		if(!UpdateTexture(IndexTex, VK_FORMAT_R8G8B8A8_UNORM, pData, pCommand->m_X, pCommand->m_Y, pCommand->m_Width, pCommand->m_Height))
 			return false;
 
 		free(pData);

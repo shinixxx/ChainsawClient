@@ -821,7 +821,7 @@ Enable replays
 == Включить записи
 
 Gameplay
-== Игровой процесс
+== Геймплей
 
 Overlay entities
 == Наложение
@@ -1050,7 +1050,7 @@ Chat command
 == Чат-команда
 
 Discord
-== Дискорд
+== Discord
 
 https://ddnet.org/discord
 == https://ddnet.org/discord
@@ -2499,7 +2499,7 @@ There's an unsaved change in the touch controls editor, you might want to save i
 == В настройках сенсорного управления есть несохраненные изменения, возможно, вы хотите их сохранить.
 
 Info
-== Информация
+== Инфо
 
 Preview visibilities
 == Предпросмотр отображения

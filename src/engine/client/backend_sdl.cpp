@@ -26,10 +26,9 @@
 #endif
 
 #include "backend_sdl.h"
+#include "bc_postfx_cmd.h" // chainsaw
 
-#if defined(CONF_HEADLESS_CLIENT)
 #include "backend/null/backend_null.h"
-#endif
 
 #if !defined(CONF_BACKEND_OPENGL_ES)
 #include "backend/opengl/backend_opengl3.h"
@@ -122,6 +121,7 @@ bool CCommandProcessorFragment_SDL::RunCommand(const CCommandBuffer::SCommand *p
 	case CMD_SHUTDOWN: Cmd_Shutdown(static_cast<const SCommand_Shutdown *>(pBaseCommand)); break;
 	case CCommandProcessorFragment_GLBase::CMD_PRE_INIT: break;
 	case CCommandProcessorFragment_GLBase::CMD_POST_SHUTDOWN: break;
+	case CMD_BC_POSTFX: break; // chainsaw: post-processing, only the OpenGL 3.3 renderer draws it
 	default: return false;
 	}
 
@@ -236,7 +236,9 @@ CCommandProcessor_SDL_GL::CCommandProcessor_SDL_GL(EBackendType BackendType, int
 #if defined(CONF_HEADLESS_CLIENT)
 	m_pGLBackend = new CCommandProcessorFragment_Null();
 #else
-	if(BackendType == BACKEND_TYPE_OPENGL_ES)
+	if(g_Config.m_BcHeadless) // bestclient
+		m_pGLBackend = new CCommandProcessorFragment_Null();
+	else if(BackendType == BACKEND_TYPE_OPENGL_ES)
 	{
 #if defined(CONF_BACKEND_OPENGL_ES) || defined(CONF_BACKEND_OPENGL_ES3)
 		if(GLMajor < 3)
@@ -963,6 +965,26 @@ int CGraphicsBackend_SDL_GL::Init(const char *pName, int *pScreen, int *pWidth, 
 	*pFsaaSamples = 0;
 	log_info("gfx", "Created headless context");
 #else
+	// bestclient: block clients run without window and graphics, same as a headless build
+	int InitError = 0;
+	int GlewMajor = 0;
+	int GlewMinor = 0;
+	int GlewPatch = 0;
+	if(g_Config.m_BcHeadless)
+	{
+		m_BackendType = BACKEND_TYPE_OPENGL;
+		g_Config.m_GfxGLMajor = 0;
+		g_Config.m_GfxGLMinor = 0;
+		g_Config.m_GfxGLPatch = 0;
+		*pScreen = 0;
+		*pWidth = *pDesktopWidth = *pCurrentWidth = 800;
+		*pHeight = *pDesktopHeight = *pCurrentHeight = 600;
+		*pRefreshRate = 60;
+		*pFsaaSamples = 0;
+		log_info("gfx", "Created headless context");
+	}
+	else
+	{
 	// print sdl version
 	{
 		SDL_version Compiled;
@@ -1172,10 +1194,6 @@ int CGraphicsBackend_SDL_GL::Init(const char *pName, int *pScreen, int *pWidth, 
 			return EGraphicsBackendErrorCodes::GRAPHICS_BACKEND_ERROR_CODE_SDL_WINDOW_CREATE_FAILED;
 	}
 
-	int GlewMajor = 0;
-	int GlewMinor = 0;
-	int GlewPatch = 0;
-
 	if(IsOpenGLFamilyBackend)
 	{
 		m_GLContext = SDL_GL_CreateContext(m_pWindow);
@@ -1197,7 +1215,7 @@ int CGraphicsBackend_SDL_GL::Init(const char *pName, int *pScreen, int *pWidth, 
 		}
 	}
 
-	int InitError = IsVersionSupportedGlew(m_BackendType, g_Config.m_GfxGLMajor, g_Config.m_GfxGLMinor, g_Config.m_GfxGLPatch, GlewMajor, GlewMinor, GlewPatch);
+	InitError = IsVersionSupportedGlew(m_BackendType, g_Config.m_GfxGLMajor, g_Config.m_GfxGLMinor, g_Config.m_GfxGLPatch, GlewMajor, GlewMinor, GlewPatch);
 
 	// SDL_GL_GetDrawableSize reports HiDPI resolution even with SDL_WINDOW_ALLOW_HIGHDPI not set, which is wrong
 	if(SdlFlags & SDL_WINDOW_ALLOW_HIGHDPI)
@@ -1238,6 +1256,7 @@ int CGraphicsBackend_SDL_GL::Init(const char *pName, int *pScreen, int *pWidth, 
 
 		return EGraphicsBackendErrorCodes::GRAPHICS_BACKEND_ERROR_CODE_GL_VERSION_FAILED;
 	}
+	} // bestclient: end of the windowed init
 #endif // !CONF_HEADLESS_CLIENT
 
 	// start the command processor

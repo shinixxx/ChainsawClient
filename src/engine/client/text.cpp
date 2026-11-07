@@ -26,6 +26,23 @@
 
 using namespace std::chrono_literals;
 
+// bestclient
+extern void (*BCGradient_ApplyEverythingHook)(CTextCursor *pCursor, const char *pText, int Length);
+// bestclient
+
+// TClient
+static void ReplaceHyphensWithSpaces(char *pStr)
+{
+	if(pStr == nullptr)
+		return;
+	while(*pStr)
+	{
+		if(*pStr == '-')
+			*pStr = ' ';
+		pStr++;
+	}
+}
+
 enum
 {
 	FONT_NAME_SIZE = 128,
@@ -354,6 +371,16 @@ private:
 			{
 				FamilyNameMatch = CurrentFace;
 			}
+
+			// TClient
+			// Third best match: match the fucking font name
+			char aBuf[256];
+			str_copy(aBuf, FT_Get_Postscript_Name(CurrentFace));
+			ReplaceHyphensWithSpaces(aBuf);
+			if(!FamilyNameMatch && str_comp(pFamilyName, aBuf) == 0)
+			{
+				FamilyNameMatch = CurrentFace;
+			}
 		}
 
 		return FamilyNameMatch;
@@ -405,6 +432,10 @@ private:
 
 	FT_UInt GetCharGlyph(int Chr, FT_Face *pFace, bool AllowReplacementCharacter)
 	{
+		// TClient: 0xE0073 is '󠁳', which doesn't get rendered if Noto Emoji is used as fallback font
+		if(Chr == 0xe0073)
+			Chr = REPLACEMENT_CHARACTER;
+
 		for(FT_Face Face : {m_SelectedFace, m_DefaultFace, m_VariantFace})
 		{
 			if(Face && Face->charmap)
@@ -606,6 +637,8 @@ public:
 			delete[] pTextureData;
 		}
 	}
+	// TClient
+	std::vector<FT_Face> *GetFaces() { return &m_vFtFaces; }
 
 	FT_Face DefaultFace() const
 	{
@@ -889,6 +922,9 @@ struct STextContainer
 
 	bool m_HasCursor;
 	bool m_ForceCursorRendering;
+	// bestclient
+	bool m_HideCursorQuad;
+	// bestclient
 	bool m_HasSelection;
 
 	bool m_SingleTimeUse;
@@ -914,6 +950,9 @@ struct STextContainer
 
 		m_HasCursor = false;
 		m_ForceCursorRendering = false;
+		// bestclient
+		m_HideCursorQuad = false;
+		// bestclient
 		m_HasSelection = false;
 
 		m_SingleTimeUse = false;
@@ -979,6 +1018,10 @@ class CTextRender : public IEngineTextRender
 	SBufferContainerInfo m_DefaultTextContainerInfo;
 
 	std::chrono::nanoseconds m_CursorRenderTime;
+
+	// TClient
+	std::vector<std::string> m_CustomFontFaces;
+	std::vector<std::string> m_DefaultFontFaces;
 
 	int GetFreeTextContainerIndex()
 	{
@@ -1175,6 +1218,104 @@ public:
 		m_pStorage = nullptr;
 	}
 
+	// TClient
+	static int LaziestFileCallback(const char *pFilename, int IsDir, int StorageType, void *pUser)
+	{
+		std::vector<std::string> *pVector = static_cast<std::vector<std::string> *>(pUser);
+		if(IsDir)
+			return 0;
+		pVector->emplace_back(pFilename);
+		return 0;
+	}
+	// TClient
+	void CheckDefaultFaces()
+	{
+		for(const auto &CurrentFace : *m_pGlyphMap->GetFaces())
+		{
+			char aBuf[256];
+			str_copy(aBuf, FT_Get_Postscript_Name(CurrentFace));
+			ReplaceHyphensWithSpaces(aBuf);
+			m_DefaultFontFaces.emplace_back(aBuf);
+		}
+	}
+	// TClient
+	void UpdateCustomFontList()
+	{
+		std::vector<std::string> vAllFaces;
+		for(const auto &CurrentFace : *m_pGlyphMap->GetFaces())
+		{
+			char aBuf[256];
+			str_copy(aBuf, FT_Get_Postscript_Name(CurrentFace));
+			ReplaceHyphensWithSpaces(aBuf);
+			vAllFaces.emplace_back(aBuf);
+		}
+
+		m_CustomFontFaces.clear();
+		m_CustomFontFaces.emplace_back("DejaVu Sans");
+		for(const auto &Face : vAllFaces)
+			if(std::find(m_DefaultFontFaces.begin(), m_DefaultFontFaces.end(), Face) == m_DefaultFontFaces.end())
+				m_CustomFontFaces.push_back(Face);
+	}
+	// TClient
+	void LoadCustomFonts()
+	{
+		CheckDefaultFaces();
+		std::vector<std::string> vCustomFonts;
+		Storage()->ListDirectory(IStorage::TYPE_ALL, "tclient/fonts", LaziestFileCallback, &vCustomFonts);
+		std::sort(vCustomFonts.begin(), vCustomFonts.end());
+		for(const std::string &FilePath : vCustomFonts)
+		{
+			char aFontName[IO_MAX_PATH_LENGTH];
+			str_format(aFontName, sizeof(aFontName), "tclient/fonts/%s", FilePath.c_str());
+			void *pFontData;
+			unsigned FontDataSize;
+			if(Storage()->ReadFile(aFontName, IStorage::TYPE_ALL, &pFontData, &FontDataSize))
+			{
+				if(LoadFontCollection(aFontName, static_cast<FT_Byte *>(pFontData), (FT_Long)FontDataSize))
+				{
+					m_vpFontData.push_back(pFontData);
+				}
+				else
+				{
+					free(pFontData);
+				}
+			}
+			else
+			{
+				log_error("textrender", "Failed to open/read font file '%s'", aFontName);
+			}
+		}
+		// bestclient
+		{
+			const char *pBcFontPath = "BestClient/ActayWide-Bold.otf";
+			void *pBcFontData;
+			unsigned BcFontDataSize;
+			if(Storage()->ReadFile(pBcFontPath, IStorage::TYPE_ALL, &pBcFontData, &BcFontDataSize))
+			{
+				if(LoadFontCollection(pBcFontPath, static_cast<FT_Byte *>(pBcFontData), (FT_Long)BcFontDataSize))
+					m_vpFontData.push_back(pBcFontData);
+				else
+					free(pBcFontData);
+			}
+			else
+			{
+				log_error("textrender", "Failed to open/read font file '%s'", pBcFontPath);
+			}
+		}
+		// bestclient
+		UpdateCustomFontList();
+	}
+	// TClient
+	std::vector<std::string> *GetCustomFaces() override
+	{
+		return &m_CustomFontFaces;
+	}
+	// TClient
+	void SetCustomFace(const char *pFace) override
+	{
+		m_pGlyphMap->SetDefaultFaceByName(pFace);
+	}
+
 	bool LoadFonts() override
 	{
 		// read file data into buffer
@@ -1260,6 +1401,9 @@ public:
 			log_error("textrender", "Font index malformed: 'default' must be a string");
 			Success = false;
 		}
+		// TClient
+		LoadCustomFonts();
+		m_pGlyphMap->AddFallbackFaceByName("DejaVu Sans");
 
 		// extract language variant family names
 		const json_value &Variants = (*pJsonData)["language variants"];
@@ -1530,6 +1674,11 @@ public:
 			Length = str_length(pText);
 		else
 			Length = std::min(Length, str_length(pText));
+
+		// bestclient
+		if(BCGradient_ApplyEverythingHook && pCursor->m_vColorSplits.empty())
+			BCGradient_ApplyEverythingHook(pCursor, pText, Length);
+		// bestclient
 
 		const char *pCurrent = pText;
 		const char *pEnd = pCurrent + Length;
@@ -2053,6 +2202,9 @@ public:
 			TextContainer.m_HasCursor = HasCursor;
 			TextContainer.m_HasSelection = HasSelection;
 			TextContainer.m_ForceCursorRendering = pCursor->m_ForceCursorRendering;
+			// bestclient
+			TextContainer.m_HideCursorQuad = pCursor->m_HideCursorQuad;
+			// bestclient
 
 			if(HasSelection)
 			{
@@ -2072,6 +2224,10 @@ public:
 		pCursor->m_LineCount = LineCount;
 
 		TextContainer.m_BoundingBox = pCursor->BoundingBox();
+
+		// bestclient
+		pCursor->m_vColorSplits.clear();
+		// bestclient
 	}
 
 	bool CreateOrAppendTextContainer(STextContainerIndex &TextContainerIndex, CTextCursor *pCursor, const char *pText, int Length = -1) override
@@ -2200,7 +2356,9 @@ public:
 				Graphics()->SetColor(1.0f, 1.0f, 1.0f, 1.0f);
 			}
 
-			if(TextContainer.m_HasCursor)
+			// bestclient
+			if(TextContainer.m_HasCursor && !TextContainer.m_HideCursorQuad)
+			// bestclient
 			{
 				const auto CurTime = time_get_nanoseconds();
 

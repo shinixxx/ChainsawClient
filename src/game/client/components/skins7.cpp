@@ -148,6 +148,21 @@ bool CSkins7::LoadSkinPart(int PartType, const char *pName, int DirType)
 		return false;
 	}
 
+	// Keep 0.6 and 0.7 skin memory usage under the same quality limit. // bestclient
+	const size_t MaxWidth = (size_t)g_Config.m_ClSkinMaxWidth;
+	if(Info.m_Width > MaxWidth)
+	{
+		size_t NewWidth = MaxWidth;
+		size_t NewHeight = (NewWidth * Info.m_Height) / Info.m_Width;
+		if(NewWidth < 1)
+			NewWidth = 1;
+		if(NewHeight < 1)
+			NewHeight = 1;
+		log_info("skins7", "Downscaling skin part '%s/%s' from %" PRIzu "x%" PRIzu " to %" PRIzu "x%" PRIzu,
+			CSkins7::ms_apSkinPartNames[PartType], pName, Info.m_Width, Info.m_Height, NewWidth, NewHeight);
+		ResizeImage(Info, NewWidth, NewHeight); // bestclient
+	}
+
 	CSkinPart Part;
 	Part.m_Type = PartType;
 	Part.m_Flags = 0;

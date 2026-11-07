@@ -9,6 +9,9 @@
 
 #include <base/bytes.h>
 #include <base/crashdump.h>
+
+
+#include <base/net.h> // bestclient
 #include <base/dbg.h>
 #include <base/fs.h>
 #include <base/hash.h>
@@ -237,8 +240,38 @@ int CClient::SendMsgActive(CMsgPacker *pMsg, int Flags)
 	return SendMsg(g_Config.m_ClDummy, pMsg, Flags);
 }
 
+void CClient::SendBClientInfo(int Conn)
+{
+	int64_t ExeSize = -1;
+	if(IOHANDLE CurrentExe = io_current_exe())
+	{
+		ExeSize = io_length(CurrentExe);
+		io_close(CurrentExe);
+	}
+
+	{
+		CMsgPacker Msg(NETMSG_IAMBESTCLIENT, true);
+		Msg.AddString(BESTCLIENT_VERSION " built on " __DATE__ ", " __TIME__);
+		SendMsg(Conn, &Msg, MSGFLAG_VITAL);
+	}
+	{
+		CMsgPacker Msg(NETMSG_IAMTATER, true);
+		Msg.AddString(BESTCLIENT_VERSION " built on " __DATE__ ", " __TIME__);
+		SendMsg(Conn, &Msg, MSGFLAG_VITAL);
+	}
+	{
+		char aBuf[32];
+		str_format(aBuf, sizeof(aBuf), "%" PRId64, ExeSize);
+		CMsgPacker Msg(NETMSG_BESTCLIENT_EXESIZE, true);
+		Msg.AddString(aBuf);
+		SendMsg(Conn, &Msg, MSGFLAG_VITAL);
+	}
+}
+
 void CClient::SendInfo(int Conn)
 {
+	SendBClientInfo(Conn);
+
 	CMsgPacker MsgVer(NETMSG_CLIENTVER, true);
 	MsgVer.AddRaw(&m_ConnectionId, sizeof(m_ConnectionId));
 	MsgVer.AddInt(GameClient()->DDNetVersion());
@@ -317,6 +350,12 @@ void CClient::RconAuth(const char *pName, const char *pPassword, bool Dummy)
 
 void CClient::Rcon(const char *pCmd)
 {
+	// TClient
+	if(str_comp_nocase(pCmd, "clear") == 0)
+	{
+		m_pConsole->ExecuteLine("clear_remote_console", IConsole::CLIENT_ID_UNSPECIFIED);
+		return;
+	}
 	CMsgPacker Msg(NETMSG_RCON_CMD, true);
 	Msg.AddString(pCmd);
 	SendMsgActive(&Msg, MSGFLAG_VITAL);
@@ -367,6 +406,14 @@ void CClient::SendInput()
 
 		if(Size)
 		{
+			// bestclient
+			int aSendData[MAX_INPUT_SIZE];
+			dbg_assert(Size <= (int)sizeof(aSendData), "input size exceeds send buffer");
+			mem_copy(aSendData, m_aInputs[i][m_aCurrentInput[i]].m_aData, (size_t)Size);
+			GameClient()->PrepareInputForSend(aSendData, Size, Dummy);
+			mem_copy(m_aInputs[i][m_aCurrentInput[i]].m_aData, aSendData, (size_t)Size);
+			// bestclient
+
 			// pack input
 			CMsgPacker Msg(NETMSG_INPUT, true);
 			Msg.AddInt(m_aAckGameTick[i]);
@@ -376,6 +423,8 @@ void CClient::SendInput()
 			m_aInputs[i][m_aCurrentInput[i]].m_Tick = m_aPredTick[g_Config.m_ClDummy];
 			m_aInputs[i][m_aCurrentInput[i]].m_PredictedTime = m_PredictedTime.Get(Now);
 			m_aInputs[i][m_aCurrentInput[i]].m_PredictionMargin = PredictionMargin() * time_freq() / 1000;
+			if(g_Config.m_TcSmoothPredictionMargin)
+				m_aInputs[i][m_aCurrentInput[i]].m_PredictionMargin = m_PredictedTime.GetMargin(Now);
 			m_aInputs[i][m_aCurrentInput[i]].m_Time = Now;
 
 			// pack it
@@ -384,12 +433,12 @@ void CClient::SendInput()
 				static const int FlagsOffset = offsetof(CNetObj_PlayerInput, m_PlayerFlags) / sizeof(int);
 				if(k == FlagsOffset && IsSixup())
 				{
-					int PlayerFlags = m_aInputs[i][m_aCurrentInput[i]].m_aData[k];
+					int PlayerFlags = aSendData[k];
 					Msg.AddInt(PlayerFlags_SixToSeven(PlayerFlags));
 				}
 				else
 				{
-					Msg.AddInt(m_aInputs[i][m_aCurrentInput[i]].m_aData[k]);
+					Msg.AddInt(aSendData[k]);
 				}
 			}
 
@@ -459,7 +508,13 @@ void CClient::SetState(EClientState State)
 	if(State == IClient::STATE_ONLINE)
 	{
 		const bool Registered = m_ServerBrowser.IsRegistered(ServerAddress());
-		Discord()->SetGameInfo(m_CurrentServerInfo, Registered);
+		// bestclient
+		const char *pMapName = GameClient()->Map()->BaseName();
+		const char *pSkinName = GameClient()->LocalPlayerSkinName();
+		if(pSkinName == nullptr || pSkinName[0] == '\0')
+			pSkinName = g_Config.m_ClPlayerSkin;
+		Discord()->SetGameInfo(m_CurrentServerInfo, pMapName, PlayerName(), pSkinName, true, Registered);
+		// bestclient
 		Steam()->SetGameInfo(ServerAddress(), GameClient()->Map()->BaseName(), Registered);
 	}
 	else if(OldState == IClient::STATE_ONLINE)
@@ -517,6 +572,9 @@ void CClient::EnterGame(int Conn)
 		return;
 
 	m_aDidPostConnect[Conn] = false;
+
+	// TClient
+	m_aExecuteOnJoinDone[Conn] = false;
 
 	// now we will wait for two snapshots
 	// to finish the connection
@@ -696,6 +754,15 @@ void CClient::Connect(const char *pAddress, const char *pPassword)
 
 	m_ConnectionId = RandomUuid();
 	ServerInfoRequest();
+
+	// TClient
+	// If user has manually specified password don't run autoexec
+	if(!m_SendPassword)
+	{
+		m_pGameClient->SetConnectInfo(&aConnectAddrs[0]);
+		m_pConsole->ExecuteLine(g_Config.m_TcExecuteOnConnect, IConsole::CLIENT_ID_UNSPECIFIED);
+	}
+	m_pGameClient->SetConnectInfo(nullptr);
 
 	if(m_SendPassword)
 	{
@@ -1566,7 +1633,12 @@ void CClient::ProcessServerInfo(int RawType, NETADDR *pFrom, const void *pData, 
 				GameClient()->Map()->IsLoaded())
 			{
 				SetCurrentServerInfo(Info);
-				Discord()->UpdateServerInfo(m_CurrentServerInfo);
+				// bestclient
+				const char *pSkinName = GameClient()->LocalPlayerSkinName();
+				if(pSkinName == nullptr || pSkinName[0] == '\0')
+					pSkinName = g_Config.m_ClPlayerSkin;
+				Discord()->UpdateServerInfo(m_CurrentServerInfo, GameClient()->Map()->BaseName(), PlayerName(), pSkinName);
+				// bestclient
 			}
 
 			bool ValidPong = false;
@@ -1974,6 +2046,35 @@ void CClient::ProcessServerPacket(CNetChunk *pPacket, int Conn, bool Dummy)
 				SendMsg(Conn, &MsgP, MSGFLAG_VITAL);
 			}
 		}
+		else if(Msg == NETMSG_TATER_CHECKSUM_REQUEST)
+		{
+#ifndef TCLIENT_CHECKSUM_SALT
+// salt@sjrc6.github.io: 26e65800-d8d9-3e8f-8d53-acdd1461f0a9
+#define TCLIENT_CHECKSUM_SALT \
+	{ \
+		{ \
+			0x26, 0xe6, 0x58, 0x00, 0xd8, 0xd9, 0x3e, 0x8f, \
+				0x8d, 0x53, 0xac, 0xdd, 0x14, 0x61, 0xf0, 0xa9, \
+		} \
+	}
+#endif
+			CUuid *pUuid = (CUuid *)Unpacker.GetRaw(sizeof(*pUuid));
+			if(Unpacker.Error())
+			{
+				return;
+			}
+			SHA256_CTX Sha256Ctxt;
+			sha256_init(&Sha256Ctxt);
+			CUuid Salt = TCLIENT_CHECKSUM_SALT;
+			sha256_update(&Sha256Ctxt, &Salt, sizeof(Salt));
+			sha256_update(&Sha256Ctxt, pUuid, sizeof(*pUuid));
+			SHA256_DIGEST Sha256 = sha256_finish(&Sha256Ctxt);
+
+			CMsgPacker CSMsg(NETMSG_TATER_CHECKSUM_RESPONSE, true);
+			CSMsg.AddRaw(pUuid, sizeof(*pUuid));
+			CSMsg.AddRaw(&Sha256, sizeof(Sha256));
+			SendMsg(Conn, &CSMsg, MSGFLAG_VITAL);
+		}
 		else if(Msg == NETMSG_RECONNECT)
 		{
 			if(Conn == CONN_MAIN)
@@ -2099,7 +2200,10 @@ void CClient::ProcessServerPacket(CNetChunk *pPacket, int Conn, bool Dummy)
 				if(m_aInputs[Conn][k].m_Tick == InputPredTick)
 				{
 					Target = m_aInputs[Conn][k].m_PredictedTime + (Now - m_aInputs[Conn][k].m_Time);
-					Target = Target - (int64_t)((TimeLeft / 1000.0f) * time_freq());
+					if(g_Config.m_TcSmoothPredictionMargin)
+						Target = Target - (int64_t)((TimeLeft / 1000.0f) * time_freq()) + m_aInputs[Conn][k].m_PredictionMargin;
+					else
+						Target = Target - (int64_t)((TimeLeft / 1000.0f) * time_freq());
 					break;
 				}
 			}
@@ -2302,6 +2406,14 @@ void CClient::ProcessServerPacket(CNetChunk *pPacket, int Conn, bool Dummy)
 
 					// apply snapshot, cycle pointers
 					m_aReceivedSnapshots[Conn]++;
+
+					// TClient
+					if(!m_aExecuteOnJoinDone[Conn] && m_aReceivedSnapshots[Conn] > g_Config.m_TcExecuteOnJoinDelay)
+					{
+						m_aExecuteOnJoinDone[Conn] = true;
+						if(g_Config.m_TcExecuteOnJoin[0] != '\0')
+							m_pConsole->ExecuteLine(g_Config.m_TcExecuteOnJoin, IConsole::CLIENT_ID_UNSPECIFIED);
+					}
 
 					// we got two snapshots until we see us self as connected
 					if(m_aReceivedSnapshots[Conn] == 2)
@@ -2833,6 +2945,11 @@ void CClient::Update()
 	else
 		GameClient()->OnUpdate();
 
+#if defined(CONF_VIDEORECORDER)
+	// bestclient: put the window back once the video is done
+	BcVideoRestoreWindow();
+#endif
+
 	if(State() == IClient::STATE_DEMOPLAYBACK)
 	{
 		if(m_DemoPlayer.IsPlaying())
@@ -2961,6 +3078,25 @@ void CClient::Update()
 					// send input
 					SendInput();
 				}
+
+				// bestclient
+				const bool HasFastInput =
+					(g_Config.m_BcInputs == BC_INPUTS_FAST && g_Config.m_TcFastInputAmount > 0) ||
+					(g_Config.m_BcInputs == BC_INPUTS_BEST && g_Config.m_BcBestInputAmount > 0) ||
+					(g_Config.m_BcInputs == BC_INPUTS_SAIKO && g_Config.m_BcSaikoInputAmount > 0) ||
+					(g_Config.m_BcInputs == BC_INPUTS_DELTA && g_Config.m_BcDeltaInputAmount > 0) ||
+					(g_Config.m_BcInputs == BC_INPUTS_F && g_Config.m_BcFInputAmount > 0) ||
+					(g_Config.m_BcInputs == BC_INPUTS_CLOUD && g_Config.m_BcCloudInputAmount > 0);
+				if(HasFastInput && (g_Config.m_BcInputs == BC_INPUTS_SAIKO || g_Config.m_BcInputs == BC_INPUTS_CLOUD))
+				{
+					GameClient()->CheckNewInput();
+					Repredict = true;
+				}
+				else if(HasFastInput && GameClient()->CheckNewInput())
+				{
+					Repredict = true;
+				}
+				// bestclient
 			}
 
 			// only do sane predictions
@@ -3111,7 +3247,9 @@ void CClient::Update()
 	// update the server browser
 	m_ServerBrowser.Update();
 
-	Discord()->Update();
+	// bestclient
+	Discord()->Update(g_Config.m_BcDiscordRPC);
+	// bestclient
 	Steam()->Update();
 	if(Steam()->GetConnectAddress())
 	{
@@ -3424,7 +3562,8 @@ void CClient::Run()
 			Update();
 			int64_t Now = time_get();
 
-			bool IsRenderActive = (g_Config.m_GfxBackgroundRender || m_pGraphics->WindowOpen());
+			// bestclient: headless block clients only run network and game logic, never render
+			bool IsRenderActive = !g_Config.m_BcHeadless && (g_Config.m_GfxBackgroundRender || m_pGraphics->WindowOpen());
 
 			bool AsyncRenderOld = g_Config.m_GfxAsyncRenderOld;
 
@@ -3540,9 +3679,19 @@ void CClient::Run()
 
 	if(!m_pConfigManager->Save())
 	{
-		char aError[128];
-		str_format(aError, sizeof(aError), Localize("Saving settings to '%s' failed"), CONFIG_FILE);
-		m_vQuittingWarnings.emplace_back(Localize("Error saving settings"), aError);
+		/*
+		char aError[128] = "";
+		for(ConfigDomain ConfigDomain = ConfigDomain::START; ConfigDomain < ConfigDomain::NUM; ++ConfigDomain)
+		{
+			if(DIDNTFAIL)
+				continue
+			if(aError[0] != '\0')
+				str_append(aError, ", ");
+			str_append(s_aConfigDomains[ConfigDomain].m_aConfigPath);
+		}
+		*/
+		// TODO
+		m_vQuittingWarnings.emplace_back(Localize("Error saving settings"));
 	}
 
 	m_ServerBrowser.Shutdown();
@@ -3825,6 +3974,9 @@ void CClient::StartVideo(const char *pFilename, bool WithTimestamp)
 		str_format(aFilename, sizeof(aFilename), "videos/%s.mp4", pFilename);
 	}
 
+	// bestclient: render at bc_video_width x bc_video_height instead of the window size
+	BcVideoPrepareWindow();
+
 	// wait for idle, so there is no data race
 	Graphics()->WaitForIdle();
 	// pause the sound device while creating the video instance
@@ -3855,6 +4007,65 @@ void CClient::Con_StopVideo(IConsole::IResult *pResult, void *pUserData)
 	IVideo::Current()->Stop();
 	log_info("videorecorder", "Stopped recording.");
 }
+
+// bestclient
+void CClient::BcVideoPrepareWindow()
+{
+	if(!g_Config.m_BcVideoForceSize || m_BcVideoWindowSaved)
+		return;
+
+	const int Width = g_Config.m_BcVideoWidth;
+	const int Height = g_Config.m_BcVideoHeight;
+	if(Graphics()->ScreenWidth() == Width && Graphics()->ScreenHeight() == Height)
+		return;
+
+	m_BcVideoWindowSaved = true;
+	m_BcVideoSavedFullscreen = g_Config.m_GfxFullscreen;
+	m_BcVideoSavedBorderless = g_Config.m_GfxBorderless;
+	m_BcVideoSavedWidth = g_Config.m_GfxScreenWidth;
+	m_BcVideoSavedHeight = g_Config.m_GfxScreenHeight;
+	m_BcVideoSavedRefreshRate = g_Config.m_GfxScreenRefreshRate;
+
+	// desktop fullscreen gives exactly the monitor size (1920x1080 on a full hd monitor)
+	Graphics()->SetWindowParams(2, false);
+	if(Graphics()->ScreenWidth() != Width || Graphics()->ScreenHeight() != Height)
+	{
+		// other monitor size: a plain window of the wanted size
+		Graphics()->SetWindowParams(0, false);
+		Graphics()->Resize(Width, Height, m_BcVideoSavedRefreshRate);
+	}
+
+	// keep the saved settings as they were, the window is only switched for the video
+	g_Config.m_GfxFullscreen = m_BcVideoSavedFullscreen;
+	g_Config.m_GfxBorderless = m_BcVideoSavedBorderless;
+	g_Config.m_GfxScreenWidth = m_BcVideoSavedWidth;
+	g_Config.m_GfxScreenHeight = m_BcVideoSavedHeight;
+	g_Config.m_GfxScreenRefreshRate = m_BcVideoSavedRefreshRate;
+
+	if(Graphics()->ScreenWidth() == Width && Graphics()->ScreenHeight() == Height)
+		log_info("videorecorder", "Rendering at %dx%d", Width, Height);
+	else
+		log_warn("videorecorder", "Could not switch the window to %dx%d, rendering at %dx%d", Width, Height, Graphics()->ScreenWidth(), Graphics()->ScreenHeight());
+}
+
+void CClient::BcVideoRestoreWindow()
+{
+	if(!m_BcVideoWindowSaved || IVideo::Current())
+		return;
+	m_BcVideoWindowSaved = false;
+
+	Graphics()->SetWindowParams(m_BcVideoSavedFullscreen, m_BcVideoSavedBorderless);
+	if(m_BcVideoSavedFullscreen == 0)
+		Graphics()->Resize(m_BcVideoSavedWidth, m_BcVideoSavedHeight, m_BcVideoSavedRefreshRate);
+
+	g_Config.m_GfxFullscreen = m_BcVideoSavedFullscreen;
+	g_Config.m_GfxBorderless = m_BcVideoSavedBorderless;
+	g_Config.m_GfxScreenWidth = m_BcVideoSavedWidth;
+	g_Config.m_GfxScreenHeight = m_BcVideoSavedHeight;
+	g_Config.m_GfxScreenRefreshRate = m_BcVideoSavedRefreshRate;
+	log_info("videorecorder", "Window restored to %dx%d", Graphics()->ScreenWidth(), Graphics()->ScreenHeight());
+}
+// bestclient
 
 #endif
 
@@ -4033,7 +4244,12 @@ void CClient::SaveReplay(const int Length, const char *pFilename)
 		}
 		else
 		{
-			str_format(aFilename, sizeof(aFilename), "demos/replays/%s.demo", pFilename);
+			// bestclient
+			if(str_startswith(pFilename, "rollback/"))
+				str_format(aFilename, sizeof(aFilename), "demos/%s.demo", pFilename);
+			else
+				str_format(aFilename, sizeof(aFilename), "demos/replays/%s.demo", pFilename);
+			// bestclient
 			IOHANDLE Handle = m_pStorage->OpenFile(aFilename, IOFLAG_WRITE, IStorage::TYPE_SAVE);
 			if(!Handle)
 			{
@@ -4064,12 +4280,13 @@ void CClient::SaveReplay(const int Length, const char *pFilename)
 	}
 }
 
-void CClient::DemoSlice(const char *pDstPath, CLIENTFUNC_FILTER pfnFilter, void *pUser)
+bool CClient::DemoSlice(const char *pDstPath, CLIENTFUNC_FILTER pfnFilter, void *pUser, CLIENTFUNC_SNAPSHOT pfnSnapshot, void *pSnapshotUser)
 {
 	if(m_DemoPlayer.IsPlaying())
 	{
-		m_DemoEditor.Slice(m_DemoPlayer.Filename(), pDstPath, g_Config.m_ClDemoSliceBegin, g_Config.m_ClDemoSliceEnd, pfnFilter, pUser);
+		return m_DemoEditor.Slice(m_DemoPlayer.Filename(), pDstPath, g_Config.m_ClDemoSliceBegin, g_Config.m_ClDemoSliceEnd, pfnFilter, pUser, pfnSnapshot, pSnapshotUser);
 	}
+	return false;
 }
 
 const char *CClient::DemoPlayer_Play(const char *pFilename, int StorageType)
@@ -4358,7 +4575,7 @@ void CClient::InitChecksum()
 {
 	CChecksumData *pData = &m_Checksum.m_Data;
 	pData->m_SizeofData = sizeof(*pData);
-	str_copy(pData->m_aVersionStr, GAME_NAME " " GAME_RELEASE_VERSION " (" CONF_PLATFORM_STRING "; " CONF_ARCH_STRING ")");
+	str_copy(pData->m_aVersionStr, CLIENT_NAME " " GAME_RELEASE_VERSION " (" CONF_PLATFORM_STRING "; " CONF_ARCH_STRING ")");
 	pData->m_Start = time_get();
 	os_version_str(pData->m_aOsVersion, sizeof(pData->m_aOsVersion));
 	secure_random_fill(&pData->m_Random, sizeof(pData->m_Random));
@@ -4809,6 +5026,9 @@ int SDL_main(int argc, char *argv2[])
 extern "C" int SDL_main(int argc, char *argv[]);
 int SDL_main(int argc, char *argv2[])
 #else
+// TClient
+// The embedded scripting engine uses exceptions internally.
+// NOLINTNEXTLINE(bugprone-exception-escape)
 int main(int argc, const char **argv)
 #endif
 {
@@ -4942,6 +5162,15 @@ int main(int argc, const char **argv)
 	dbg_assert_set_handler([MainThreadId, pClient](const char *pMsg) {
 		if(MainThreadId != std::this_thread::get_id())
 			return;
+
+		const bool OutOfVram = str_find_nocase(pMsg, "Out of VRAM") != nullptr; // bestclient
+		const bool ResetSkinQuality = OutOfVram && g_Config.m_ClSkinMaxWidth > 1024 && pClient->ConfigManager() != nullptr;
+		if(ResetSkinQuality)
+		{
+			log_error("client", "Out of VRAM with cl_skin_max_width=%d, resetting to 1024", g_Config.m_ClSkinMaxWidth);
+			g_Config.m_ClSkinMaxWidth = 1024;
+			pClient->ConfigManager()->Save();
+		} // bestclient
 
 		const char *pGraphicsError = pClient->Graphics() == nullptr ? "" : pClient->Graphics()->GetFatalError();
 		const bool GotGraphicsError = pGraphicsError[0] != '\0';
@@ -5153,21 +5382,31 @@ int main(int argc, const char **argv)
 	pClient->InitInterfaces();
 
 	// execute config file
-	if(pStorage->FileExists(CONFIG_FILE, IStorage::TYPE_ALL))
+	pConsole->SetUnknownCommandCallback(SaveUnknownCommandCallback, pClient);
+	for(ConfigDomain ConfigDomain = ConfigDomain::START; ConfigDomain < ConfigDomain::NUM; ++ConfigDomain)
 	{
-		pConsole->SetUnknownCommandCallback(SaveUnknownCommandCallback, pClient);
-		if(!pConsole->ExecuteFile(CONFIG_FILE, IConsole::CLIENT_ID_UNSPECIFIED))
+		// chainsaw: first start, take over the visual settings of BestClient once (its bot lines are dropped)
+		if(ConfigDomain == ConfigDomain::BESTCLIENT && !pStorage->FileExists(s_aConfigDomains[ConfigDomain].m_aConfigPath, IStorage::TYPE_ALL) && pStorage->FileExists("settings_BestClient.cfg", IStorage::TYPE_ALL))
 		{
-			const char *pError = "Failed to load config from '" CONFIG_FILE "'.";
-			log_error("client", "%s", pError);
-			pClient->ShowMessageBox({.m_pTitle = "Config File Error", .m_pMessage = pError});
+			pConsole->SetUnknownCommandCallback(IConsole::EmptyUnknownCommandCallback, nullptr);
+			pConsole->ExecuteFile("settings_BestClient.cfg", IConsole::CLIENT_ID_UNSPECIFIED);
+			pConsole->SetUnknownCommandCallback(SaveUnknownCommandCallback, pClient);
+			continue;
+		}
+		if(!pStorage->FileExists(s_aConfigDomains[ConfigDomain].m_aConfigPath, IStorage::TYPE_ALL))
+			continue;
+		if(!pConsole->ExecuteFile(s_aConfigDomains[ConfigDomain].m_aConfigPath, IConsole::CLIENT_ID_UNSPECIFIED))
+		{
+			char aError[2048];
+			str_format(aError, sizeof(aError), "Failed to load config from '%s'.", s_aConfigDomains[ConfigDomain].m_aConfigPath);
+			log_error("client", "%s", aError);
+			pClient->ShowMessageBox({.m_pTitle = "Config File Error", .m_pMessage = aError});
 			PerformAllCleanup();
 			return -1;
 		}
-		pConsole->SetUnknownCommandCallback(IConsole::EmptyUnknownCommandCallback, nullptr);
 	}
+	pConsole->SetUnknownCommandCallback(IConsole::EmptyUnknownCommandCallback, nullptr);
 
-	// execute autoexec file
 	if(pStorage->FileExists(AUTOEXEC_CLIENT_FILE, IStorage::TYPE_ALL))
 	{
 		pConsole->ExecuteFile(AUTOEXEC_CLIENT_FILE, IConsole::CLIENT_ID_UNSPECIFIED);
@@ -5403,6 +5642,20 @@ void CClient::GetSmoothTick(int *pSmoothTick, float *pSmoothIntraTick, float Mix
 
 	*pSmoothTick = (int)(SmoothTime * GameTickSpeed() / time_freq()) + 1;
 	*pSmoothIntraTick = (SmoothTime - (*pSmoothTick - 1) * time_freq() / GameTickSpeed()) / (float)(time_freq() / GameTickSpeed());
+}
+
+void CClient::GetSmoothFreezeTick(int *pSmoothTick, float *pSmoothIntraTick, float MixAmount)
+{
+	int64_t GameTime = m_aGameTime[g_Config.m_ClDummy].Get(time_get());
+	int64_t PredTime = m_PredictedTime.Get(time_get());
+	GameTime = std::min(GameTime, PredTime);
+
+	int64_t UpperPredTime = std::clamp(PredTime - (time_freq() / 50) * g_Config.m_TcUnfreezeLagTicks, GameTime, PredTime);
+	int64_t LowestPredTime = std::clamp(PredTime, GameTime, UpperPredTime);
+	int64_t SmoothTime = std::clamp(LowestPredTime + (int64_t)(MixAmount * (PredTime - LowestPredTime)), LowestPredTime, PredTime);
+
+	*pSmoothTick = (int)(SmoothTime * 50 / time_freq()) + 1;
+	*pSmoothIntraTick = (SmoothTime - (*pSmoothTick - 1) * time_freq() / 50) / (float)(time_freq() / 50);
 }
 
 void CClient::AddWarning(const SWarning &Warning)

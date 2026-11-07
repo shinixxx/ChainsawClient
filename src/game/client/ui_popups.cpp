@@ -3,13 +3,22 @@
 #include "ui.h"
 #include "ui_scrollregion.h"
 
+#include <base/color.h>
 #include <base/dbg.h>
 #include <base/math.h>
 #include <base/str.h>
 
+#include <engine/font_icons.h>
 #include <engine/graphics.h>
+#include <engine/input.h>
+#include <engine/shared/config.h>
+#include <engine/textrender.h>
 
+#include <game/client/components/bestclient/bestclient.h> // bestclient
+#include <game/client/components/bestclient/ui_theme/style.h> // bestclient
 #include <game/localization.h>
+
+#include <algorithm>
 
 void CUi::DoPopupMenu(const SPopupMenuId *pId, float X, float Y, float Width, float Height, void *pContext, FPopupMenuFunction pfnFunc, const SPopupMenuProperties &Props)
 {
@@ -35,10 +44,38 @@ void CUi::RenderPopupMenus()
 {
 	for(size_t i = 0; i < m_vPopupMenus.size(); ++i)
 	{
-		const SPopupMenu &PopupMenu = m_vPopupMenus[i];
+		SPopupMenu &PopupMenu = m_vPopupMenus[i];
 		const SPopupMenuId *pId = PopupMenu.m_pId;
 		const bool Inside = MouseInside(&PopupMenu.m_Rect);
 		const bool Active = i == m_vPopupMenus.size() - 1;
+
+		// bestclient
+		bool SkipActiveLogic = false;
+		if(PopupMenu.m_Props.m_Draggable)
+		{
+			CUIRect DragHandle = PopupMenu.m_Rect;
+			DragHandle.h = SPopupMenu::POPUP_BORDER + SPopupMenu::POPUP_MARGIN + SPopupMenu::POPUP_DRAG_HANDLE_HEIGHT;
+			if(PopupMenu.m_Dragging)
+			{
+				const vec2 GuiScale = vec2(Screen()->w, Screen()->h) / vec2((float)Graphics()->WindowWidth(), (float)Graphics()->WindowHeight());
+				PopupMenu.m_Rect.x += MouseDeltaX() * GuiScale.x;
+				PopupMenu.m_Rect.y += MouseDeltaY() * GuiScale.y;
+				PopupMenu.m_Rect.x = std::clamp(PopupMenu.m_Rect.x, 0.0f, std::max(0.0f, Screen()->w - PopupMenu.m_Rect.w));
+				PopupMenu.m_Rect.y = std::clamp(PopupMenu.m_Rect.y, 0.0f, std::max(0.0f, Screen()->h - PopupMenu.m_Rect.h));
+				if(!MouseButton(0))
+				{
+					PopupMenu.m_Dragging = false;
+					SetActiveItem(nullptr);
+				}
+				SkipActiveLogic = true;
+			}
+			else if(MouseButtonClicked(0) && MouseInside(&DragHandle))
+			{
+				PopupMenu.m_Dragging = true;
+				SkipActiveLogic = true;
+			}
+		}
+		// bestclient
 
 		if(Active)
 		{
@@ -46,23 +83,26 @@ void CUi::RenderPopupMenus()
 			SetHotItem(pId);
 		}
 
-		if(CheckActiveItem(pId))
+		if(!SkipActiveLogic)
 		{
-			if(!MouseButton(0))
+			if(CheckActiveItem(pId))
 			{
-				if(!Inside)
+				if(!MouseButton(0))
 				{
-					ClosePopupMenu(pId);
-					--i;
-					continue;
+					if(!Inside)
+					{
+						ClosePopupMenu(pId);
+						--i;
+						continue;
+					}
+					SetActiveItem(nullptr);
 				}
-				SetActiveItem(nullptr);
 			}
-		}
-		else if(HotItem() == pId)
-		{
-			if(MouseButton(0))
-				SetActiveItem(pId);
+			else if(HotItem() == pId)
+			{
+				if(MouseButton(0))
+					SetActiveItem(pId);
+			}
 		}
 
 		if(Inside)
@@ -76,6 +116,16 @@ void CUi::RenderPopupMenus()
 		PopupRect.Margin(SPopupMenu::POPUP_BORDER, &PopupRect);
 		PopupRect.Draw(PopupMenu.m_Props.m_BackgroundColor, PopupMenu.m_Props.m_Corners, 3.0f);
 		PopupRect.Margin(SPopupMenu::POPUP_MARGIN, &PopupRect);
+		// bestclient
+		if(PopupMenu.m_Props.m_Draggable)
+		{
+			CUIRect DragHint = PopupRect;
+			DragHint.HSplitTop(SPopupMenu::POPUP_DRAG_HANDLE_HEIGHT, &DragHint, &PopupRect);
+			DragHint.Margin(2.0f, &DragHint);
+			DragHint.h = 2.0f;
+			DragHint.Draw(ColorRGBA(1.0f, 1.0f, 1.0f, 0.25f), IGraphics::CORNER_ALL, 1.0f);
+		}
+		// bestclient
 
 		// The popup render function can open/close popups, which may resize the vector and thus
 		// invalidate the variable PopupMenu. We therefore store pId in a separate variable.
@@ -84,6 +134,48 @@ void CUi::RenderPopupMenus()
 			ClosePopupMenu(pId, Result == POPUP_CLOSE_CURRENT_AND_DESCENDANTS);
 	}
 }
+
+// bestclient
+bool CUi::GetPopupPosition(const SPopupMenuId *pId, float &X, float &Y) const
+{
+	for(const SPopupMenu &PopupMenu : m_vPopupMenus)
+	{
+		if(PopupMenu.m_pId != pId)
+			continue;
+		X = PopupMenu.m_Rect.x;
+		Y = PopupMenu.m_Rect.y;
+		return true;
+	}
+	return false;
+}
+
+void CUi::SetPopupPosition(const SPopupMenuId *pId, float X, float Y)
+{
+	for(SPopupMenu &PopupMenu : m_vPopupMenus)
+	{
+		if(PopupMenu.m_pId != pId)
+			continue;
+		PopupMenu.m_Rect.x = std::clamp(X, 0.0f, std::max(0.0f, Screen()->w - PopupMenu.m_Rect.w));
+		PopupMenu.m_Rect.y = std::clamp(Y, 0.0f, std::max(0.0f, Screen()->h - PopupMenu.m_Rect.h));
+		break;
+	}
+}
+
+void CUi::SetPopupMenuHeight(const SPopupMenuId *pId, float Height)
+{
+	constexpr float Margin = SPopupMenu::POPUP_BORDER + SPopupMenu::POPUP_MARGIN;
+	for(SPopupMenu &PopupMenu : m_vPopupMenus)
+	{
+		if(PopupMenu.m_pId != pId)
+			continue;
+		const float Bottom = PopupMenu.m_Rect.y + PopupMenu.m_Rect.h;
+		PopupMenu.m_Rect.h = Height;
+		PopupMenu.m_Rect.y = Bottom - Height;
+		PopupMenu.m_Rect.y = std::max(PopupMenu.m_Rect.y, Margin);
+		break;
+	}
+}
+// bestclient
 
 void CUi::ClosePopupMenu(const SPopupMenuId *pId, bool IncludeDescendants)
 {
@@ -239,6 +331,9 @@ void CUi::SSelectionPopupContext::Reset()
 	m_Width = 300.0f + (SPopupMenu::POPUP_BORDER + SPopupMenu::POPUP_MARGIN) * 2;
 	m_AlignmentHeight = -1.0f;
 	m_TransparentButtons = false;
+	// bestclient
+	m_OpenUpward = false;
+	// bestclient
 }
 
 CUi::EPopupMenuFunctionResult CUi::PopupSelection(void *pContext, CUIRect View, bool Active)
@@ -270,6 +365,10 @@ CUi::EPopupMenuFunctionResult CUi::PopupSelection(void *pContext, CUIRect View, 
 	size_t Index = 0;
 	for(const auto &Entry : pSelectionPopup->m_vEntries)
 	{
+		// TClient: preview every font name using that font.
+		if(pSelectionPopup->m_SpecialFontRenderMode)
+			pUI->TextRender()->SetCustomFace(Entry.c_str());
+
 		if(pSelectionPopup->m_aMessage[0] != '\0' || Index != 0)
 			View.HSplitTop(pSelectionPopup->m_EntrySpacing, nullptr, &View);
 		View.HSplitTop(pSelectionPopup->m_EntryHeight, &Slot, &View);
@@ -283,6 +382,8 @@ CUi::EPopupMenuFunctionResult CUi::PopupSelection(void *pContext, CUIRect View, 
 		}
 		++Index;
 	}
+	if(pSelectionPopup->m_SpecialFontRenderMode)
+		BestClientApplyMenuFont(pUI->TextRender()); // bestclient
 
 	pScrollRegion->End();
 
@@ -304,7 +405,8 @@ void CUi::ShowPopupSelection(float X, float Y, SSelectionPopupContext *pContext)
 		{
 			X = std::max(X - pContext->m_Width, Margin);
 		}
-		if(Y + pContext->m_AlignmentHeight + PopupHeight > Screen()->h - Margin)
+		// bestclient
+		if(pContext->m_OpenUpward || Y + pContext->m_AlignmentHeight + PopupHeight > Screen()->h - Margin)
 		{
 			Y -= PopupHeight;
 			pContext->m_Props.m_Corners = IGraphics::CORNER_T;
@@ -314,11 +416,18 @@ void CUi::ShowPopupSelection(float X, float Y, SSelectionPopupContext *pContext)
 			Y += pContext->m_AlignmentHeight;
 			pContext->m_Props.m_Corners = IGraphics::CORNER_B;
 		}
+		// bestclient
 	}
 	DoPopupMenu(pContext, X, Y, pContext->m_Width, PopupHeight, pContext, PopupSelection, pContext->m_Props);
 }
 
+// bestclient
 int CUi::DoDropDown(CUIRect *pRect, int CurSelection, const char **pStrs, int Num, SDropDownState &State)
+{
+	return DoDropDown(pRect, CurSelection, pStrs, Num, State, false);
+}
+
+int CUi::DoDropDown(CUIRect *pRect, int CurSelection, const char **pStrs, int Num, SDropDownState &State, bool OpenUpward)
 {
 	if(!State.m_Init)
 	{
@@ -339,8 +448,8 @@ int CUi::DoDropDown(CUIRect *pRect, int CurSelection, const char **pStrs, int Nu
 	if(DoButton_Menu(State.m_UiElement, &State.m_ButtonContainer, LabelFunc, pRect, Props))
 	{
 		State.m_SelectionPopupContext.Reset();
-		State.m_SelectionPopupContext.m_Props.m_BorderColor = ColorRGBA(0.7f, 0.7f, 0.7f, 0.9f);
-		State.m_SelectionPopupContext.m_Props.m_BackgroundColor = ColorRGBA(0.0f, 0.0f, 0.0f, 0.25f);
+		State.m_SelectionPopupContext.m_Props.m_BorderColor = BestClientUiTheme::UiDropdown(ColorRGBA(0.7f, 0.7f, 0.7f, 0.9f));
+		State.m_SelectionPopupContext.m_Props.m_BackgroundColor = BestClientUiTheme::IsCustomUiDropdown() ? BestClientUiTheme::UiDropdown(0.25f) : ColorRGBA(0.0f, 0.0f, 0.0f, 0.25f);
 		for(int i = 0; i < Num; ++i)
 			State.m_SelectionPopupContext.m_vEntries.emplace_back(pStrs[i]);
 		State.m_SelectionPopupContext.m_EntryHeight = pRect->h;
@@ -349,6 +458,7 @@ int CUi::DoDropDown(CUIRect *pRect, int CurSelection, const char **pStrs, int Nu
 		State.m_SelectionPopupContext.m_Width = pRect->w;
 		State.m_SelectionPopupContext.m_AlignmentHeight = pRect->h;
 		State.m_SelectionPopupContext.m_TransparentButtons = true;
+		State.m_SelectionPopupContext.m_OpenUpward = OpenUpward;
 		ShowPopupSelection(pRect->x, pRect->y, &State.m_SelectionPopupContext);
 	}
 
@@ -361,10 +471,226 @@ int CUi::DoDropDown(CUIRect *pRect, int CurSelection, const char **pStrs, int Nu
 
 	return CurSelection;
 }
+// bestclient
+
+// bestclient
+static CUi::EPopupMenuFunctionResult PopupColorPickerNewStyle(CUi::SColorPickerPopupContext *pColorPicker, CUIRect View, bool Active)
+{
+	CUi *pUI = pColorPicker->m_pUI;
+	pColorPicker->m_State = EEditState::NONE;
+
+	CUIRect ColorsArea, HueArea, AlphaArea, BottomArea, HexRect, CopyRect, ResetRect;
+
+	const bool ShowAlpha = pColorPicker->m_Alpha;
+	View.HSplitBottom(24.0f, &View, &BottomArea);
+	View.HSplitBottom(8.0f, &View, nullptr);
+	if(ShowAlpha)
+	{
+		View.HSplitBottom(18.0f, &ColorsArea, &AlphaArea);
+		View.HSplitBottom(22.0f, &ColorsArea, nullptr);
+	}
+	else
+	{
+		ColorsArea = View;
+		AlphaArea = {};
+	}
+	ColorsArea.VSplitRight(18.0f, &ColorsArea, &HueArea);
+	HueArea.VSplitLeft(4.0f, nullptr, &HueArea);
+
+	const ColorRGBA BlackColor = ColorRGBA(0.0f, 0.0f, 0.0f, 0.5f);
+	HueArea.Draw(BlackColor, IGraphics::CORNER_ALL, 3.0f);
+	HueArea.Margin(1.0f, &HueArea);
+	ColorsArea.Draw(BlackColor, IGraphics::CORNER_ALL, 3.0f);
+	ColorsArea.Margin(1.0f, &ColorsArea);
+
+	ColorHSVA PickerColorHSV = pColorPicker->m_HsvaColor;
+	ColorRGBA PickerColorRGB = pColorPicker->m_RgbaColor;
+	ColorHSLA PickerColorHSL = pColorPicker->m_HslaColor;
+
+	ColorRGBA TL, TR, BL, BR;
+	TL = BL = color_cast<ColorRGBA>(ColorHSVA(PickerColorHSV.x, 0.0f, 1.0f));
+	TR = BR = color_cast<ColorRGBA>(ColorHSVA(PickerColorHSV.x, 1.0f, 1.0f));
+	ColorsArea.Draw4(TL, TR, BL, BR, IGraphics::CORNER_NONE, 0.0f);
+	TL = TR = ColorRGBA(0.0f, 0.0f, 0.0f, 0.0f);
+	BL = BR = ColorRGBA(0.0f, 0.0f, 0.0f, 1.0f);
+	ColorsArea.Draw4(TL, TR, BL, BR, IGraphics::CORNER_NONE, 0.0f);
+
+	static const float s_aaColorIndices[7][3] = {
+		{1.0f, 0.0f, 0.0f},
+		{1.0f, 0.0f, 1.0f},
+		{0.0f, 0.0f, 1.0f},
+		{0.0f, 1.0f, 1.0f},
+		{0.0f, 1.0f, 0.0f},
+		{1.0f, 1.0f, 0.0f},
+		{1.0f, 0.0f, 0.0f},
+	};
+	const float HuePickerOffset = HueArea.h / 6.0f;
+	CUIRect HuePartialArea = HueArea;
+	HuePartialArea.h = HuePickerOffset;
+	for(size_t j = 0; j < std::size(s_aaColorIndices) - 1; j++)
+	{
+		TL = ColorRGBA(s_aaColorIndices[j][0], s_aaColorIndices[j][1], s_aaColorIndices[j][2], 1.0f);
+		BL = ColorRGBA(s_aaColorIndices[j + 1][0], s_aaColorIndices[j + 1][1], s_aaColorIndices[j + 1][2], 1.0f);
+		HuePartialArea.y = HueArea.y + HuePickerOffset * j;
+		HuePartialArea.Draw4(TL, TL, BL, BL, IGraphics::CORNER_NONE, 0.0f);
+	}
+
+	float PickerX, PickerY;
+	EEditState ColorPickerRes = pUI->DoPickerLogic(&pColorPicker->m_ColorPickerId, &ColorsArea, &PickerX, &PickerY);
+	if(ColorPickerRes != EEditState::NONE)
+	{
+		PickerColorHSV.y = PickerX / ColorsArea.w;
+		PickerColorHSV.z = 1.0f - PickerY / ColorsArea.h;
+		PickerColorHSL = color_cast<ColorHSLA>(PickerColorHSV);
+		PickerColorRGB = color_cast<ColorRGBA>(PickerColorHSL);
+		pColorPicker->m_State = ColorPickerRes;
+	}
+
+	EEditState HuePickerRes = pUI->DoPickerLogic(&pColorPicker->m_HuePickerId, &HueArea, &PickerX, &PickerY);
+	if(HuePickerRes != EEditState::NONE)
+	{
+		PickerColorHSV.x = 1.0f - PickerY / HueArea.h;
+		PickerColorHSL = color_cast<ColorHSLA>(PickerColorHSV);
+		PickerColorRGB = color_cast<ColorRGBA>(PickerColorHSL);
+		pColorPicker->m_State = HuePickerRes;
+	}
+
+	const float MarkerX = ColorsArea.x + ColorsArea.w * PickerColorHSV.y;
+	const float MarkerY = ColorsArea.y + ColorsArea.h * (1.0f - PickerColorHSV.z);
+	const float MarkerOutlineInd = PickerColorHSV.z > 0.5f ? 0.0f : 1.0f;
+	const ColorRGBA MarkerOutline = ColorRGBA(MarkerOutlineInd, MarkerOutlineInd, MarkerOutlineInd, 1.0f);
+	pUI->Graphics()->TextureClear();
+	pUI->Graphics()->QuadsBegin();
+	pUI->Graphics()->SetColor(MarkerOutline);
+	pUI->Graphics()->DrawCircle(MarkerX, MarkerY, 4.5f, 32);
+	pUI->Graphics()->SetColor(PickerColorRGB.WithAlpha(1.0f));
+	pUI->Graphics()->DrawCircle(MarkerX, MarkerY, 3.5f, 32);
+	pUI->Graphics()->QuadsEnd();
+
+	CUIRect HueMarker;
+	HueArea.Margin(-2.5f, &HueMarker);
+	HueMarker.h = 6.5f;
+	HueMarker.y = (HueArea.y + HueArea.h * (1.0f - PickerColorHSV.x)) - HueMarker.h / 2.0f;
+	const ColorRGBA HueMarkerColor = color_cast<ColorRGBA>(ColorHSVA(PickerColorHSV.x, 1.0f, 1.0f, 1.0f));
+	const float HueMarkerOutlineColor = PickerColorHSV.x > 0.75f ? 1.0f : 0.0f;
+	HueMarker.Draw(ColorRGBA(HueMarkerOutlineColor, HueMarkerOutlineColor, HueMarkerOutlineColor, 1.0f), IGraphics::CORNER_ALL, 1.2f);
+	HueMarker.Margin(1.2f, &HueMarker);
+	HueMarker.Draw(HueMarkerColor, IGraphics::CORNER_ALL, 1.2f);
+
+	{
+		if(ShowAlpha)
+		{
+			CUIRect AlphaRail = AlphaArea;
+			AlphaRail.Draw(ColorRGBA(0.0f, 0.0f, 0.0f, 0.5f), IGraphics::CORNER_ALL, 3.0f);
+			AlphaRail.Margin(1.0f, &AlphaRail);
+			const ColorRGBA Opaque = PickerColorRGB.WithAlpha(1.0f);
+			const ColorRGBA Faded = ColorRGBA(Opaque.r * 0.12f, Opaque.g * 0.12f, Opaque.b * 0.12f, 1.0f);
+			AlphaRail.Draw4(Faded, Opaque, Faded, Opaque, IGraphics::CORNER_ALL, 2.0f);
+
+			EEditState AlphaRes = pUI->DoPickerLogic(&pColorPicker->m_AlphaPickerId, &AlphaRail, &PickerX, &PickerY);
+			if(AlphaRes != EEditState::NONE)
+			{
+				PickerColorHSV.a = std::clamp(PickerX / AlphaRail.w, 0.0f, 1.0f);
+				PickerColorRGB.a = PickerColorHSV.a;
+				PickerColorHSL.a = PickerColorHSV.a;
+				pColorPicker->m_State = AlphaRes;
+			}
+
+			const float AlphaPos = PickerColorHSV.a;
+			const ColorRGBA UnderColor = ColorRGBA(
+				Faded.r + (Opaque.r - Faded.r) * AlphaPos,
+				Faded.g + (Opaque.g - Faded.g) * AlphaPos,
+				Faded.b + (Opaque.b - Faded.b) * AlphaPos,
+				1.0f);
+			const float UnderLum = 0.299f * UnderColor.r + 0.587f * UnderColor.g + 0.114f * UnderColor.b;
+			const float AlphaOutlineInd = UnderLum > 0.45f ? 0.0f : 1.0f;
+			const ColorRGBA AlphaOutline = ColorRGBA(AlphaOutlineInd, AlphaOutlineInd, AlphaOutlineInd, 1.0f);
+
+			CUIRect AlphaMarker = AlphaRail;
+			AlphaMarker.w = 6.5f;
+			AlphaMarker.x = AlphaRail.x + AlphaRail.w * AlphaPos - AlphaMarker.w / 2.0f;
+			AlphaMarker.Draw(AlphaOutline, IGraphics::CORNER_ALL, 1.2f);
+			AlphaMarker.Margin(1.2f, &AlphaMarker);
+			AlphaMarker.Draw(Opaque, IGraphics::CORNER_ALL, 1.2f);
+		}
+		else
+		{
+			PickerColorHSV.a = 1.0f;
+			PickerColorRGB.a = 1.0f;
+			PickerColorHSL.a = 1.0f;
+		}
+	}
+
+	BottomArea.VSplitLeft(24.0f, &CopyRect, &BottomArea);
+	BottomArea.VSplitLeft(4.0f, nullptr, &BottomArea);
+	BottomArea.VSplitLeft(24.0f, &ResetRect, &BottomArea);
+	BottomArea.VSplitLeft(6.0f, nullptr, &BottomArea);
+	HexRect = BottomArea;
+
+	const bool UseAlphaHex = pColorPicker->m_Alpha;
+	const unsigned PackedHex = PickerColorRGB.PackAlphaLast(UseAlphaHex);
+	char aHex[16];
+	if(UseAlphaHex)
+		str_format(aHex, sizeof(aHex), "#%08X", PackedHex);
+	else
+		str_format(aHex, sizeof(aHex), "#%06X", PackedHex);
+
+	if(pUI->DoButton_FontIcon(&pColorPicker->m_CopyButton, FontIcon::COPY, 0, &CopyRect, BUTTONFLAG_LEFT))
+		pUI->Input()->SetClipboardText(aHex);
+
+	if(pColorPicker->m_HasDefault && pUI->DoButton_FontIcon(&pColorPicker->m_ResetButton, FontIcon::ARROW_ROTATE_LEFT, 0, &ResetRect, BUTTONFLAG_LEFT))
+	{
+		PickerColorHSL = color_cast<ColorHSLA>(pColorPicker->m_DefaultColor);
+		PickerColorHSV = color_cast<ColorHSVA>(PickerColorHSL);
+		PickerColorRGB = color_cast<ColorRGBA>(PickerColorHSL);
+		pColorPicker->m_State = EEditState::END;
+		if(UseAlphaHex)
+			str_format(aHex, sizeof(aHex), "#%08X", PickerColorRGB.PackAlphaLast(true));
+		else
+			str_format(aHex, sizeof(aHex), "#%06X", PickerColorRGB.PackAlphaLast(false));
+		pColorPicker->m_HexInput.Set(aHex);
+	}
+
+	const bool HexFocused = CLineInput::GetActiveInput() == &pColorPicker->m_HexInput;
+	if(!HexFocused && str_comp(pColorPicker->m_HexInput.GetString(), aHex) != 0)
+		pColorPicker->m_HexInput.Set(aHex);
+
+	const ColorRGBA OldOutline = pUI->TextRender()->GetTextOutlineColor();
+	pUI->TextRender()->TextOutlineColor(ColorRGBA(0.0f, 0.0f, 0.0f, 0.65f));
+	if(pUI->DoEditBox(&pColorPicker->m_HexInput, &HexRect, 12.0f))
+	{
+		const char *pHexStr = pColorPicker->m_HexInput.GetString();
+		if(pHexStr[0] == '#')
+			++pHexStr;
+		if(const auto Parsed = color_parse<ColorRGBA>(pHexStr))
+		{
+			PickerColorRGB = *Parsed;
+			if(!UseAlphaHex)
+				PickerColorRGB.a = 1.0f;
+			PickerColorHSL = color_cast<ColorHSLA>(PickerColorRGB);
+			PickerColorHSV = color_cast<ColorHSVA>(PickerColorHSL);
+			pColorPicker->m_State = EEditState::EDITING;
+		}
+	}
+	pUI->TextRender()->TextOutlineColor(OldOutline);
+
+	pColorPicker->m_HsvaColor = PickerColorHSV;
+	pColorPicker->m_RgbaColor = PickerColorRGB;
+	pColorPicker->m_HslaColor = PickerColorHSL;
+	if(pColorPicker->m_pHslaColor != nullptr)
+		*pColorPicker->m_pHslaColor = PickerColorHSL.Pack(pColorPicker->m_Alpha);
+
+	return CUi::POPUP_KEEP_OPEN;
+}
+// bestclient
 
 CUi::EPopupMenuFunctionResult CUi::PopupColorPicker(void *pContext, CUIRect View, bool Active)
 {
 	SColorPickerPopupContext *pColorPicker = static_cast<SColorPickerPopupContext *>(pContext);
+	// bestclient
+	if(BestClientUiTheme::IsNewColorPicker())
+		return PopupColorPickerNewStyle(pColorPicker, View, Active);
+	// bestclient
 	CUi *pUI = pColorPicker->m_pUI;
 	pColorPicker->m_State = EEditState::NONE;
 
@@ -642,5 +968,20 @@ void CUi::ShowPopupColorPicker(float X, float Y, SColorPickerPopupContext *pCont
 	pContext->m_pUI = this;
 	if(pContext->m_ColorMode == SColorPickerPopupContext::MODE_UNSET)
 		pContext->m_ColorMode = SColorPickerPopupContext::MODE_HSVA;
-	DoPopupMenu(pContext, X, Y, 160.0f + 10.0f, 209.0f + 10.0f, pContext, PopupColorPicker);
+	// bestclient
+	if(BestClientUiTheme::IsNewColorPicker())
+	{
+		char aHex[16];
+		const unsigned PackedHex = pContext->m_RgbaColor.PackAlphaLast(pContext->m_Alpha);
+		if(pContext->m_Alpha)
+			str_format(aHex, sizeof(aHex), "#%08X", PackedHex);
+		else
+			str_format(aHex, sizeof(aHex), "#%06X", PackedHex);
+		pContext->m_HexInput.Set(aHex);
+		const float PopupH = pContext->m_Alpha ? 236.0f : 200.0f;
+		DoPopupMenu(pContext, X, Y, 170.0f + 10.0f, PopupH + 10.0f, pContext, PopupColorPicker);
+	}
+	else
+		// bestclient
+		DoPopupMenu(pContext, X, Y, 160.0f + 10.0f, 209.0f + 10.0f, pContext, PopupColorPicker);
 }

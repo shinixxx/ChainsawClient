@@ -7,6 +7,9 @@
 
 #include <game/client/components/mapimages.h>
 #include <game/client/components/maplayers.h>
+// bestclient
+#include <game/client/components/bestclient/menu_media_background.h>
+// bestclient
 #include <game/client/gameclient.h>
 #include <game/layers.h>
 #include <game/localization.h>
@@ -93,13 +96,39 @@ void CBackground::OnMapLoad()
 
 void CBackground::OnRender()
 {
-	if(!m_Loaded)
-		return;
+	// bestclient
+	if(Client()->State() == IClient::STATE_ONLINE || Client()->State() == IClient::STATE_DEMOPLAYBACK)
+	{
+		CMenuMediaBackground &MediaBackground = GameClient()->m_BestClient.MenuMediaBackground();
+		MediaBackground.SyncFromConfig(g_Config.m_BcGameMediaBackground, g_Config.m_BcMenuMediaBackgroundPath);
+		MediaBackground.Update();
+		if(g_Config.m_BcGameMediaBackground && g_Config.m_ClOverlayEntities > 0)
+		{
+			float ViewWidth = 0.0f;
+			float ViewHeight = 0.0f;
+			Graphics()->CalcScreenParams(Graphics()->ScreenAspect(), GetCurCamera()->m_Zoom, &ViewWidth, &ViewHeight);
 
-	if(Client()->State() != IClient::STATE_ONLINE && Client()->State() != IClient::STATE_DEMOPLAYBACK)
-		return;
+			CMenuMediaBackground::SRenderContext RenderContext;
+			RenderContext.m_CameraCenterX = GetCurCamera()->m_Center.x;
+			RenderContext.m_CameraCenterY = GetCurCamera()->m_Center.y;
+			RenderContext.m_ViewWidth = ViewWidth;
+			RenderContext.m_ViewHeight = ViewHeight;
+			RenderContext.m_WorldOffset = (float)g_Config.m_BcGameMediaBackgroundOffset / 100.0f;
+			if(GameClient()->Layers() != nullptr && GameClient()->Layers()->GameLayer() != nullptr)
+			{
+				RenderContext.m_MapWidth = GameClient()->Layers()->GameLayer()->m_Width * 32.0f;
+				RenderContext.m_MapHeight = GameClient()->Layers()->GameLayer()->m_Height * 32.0f;
+			}
+
+			MediaBackground.Render(ViewWidth, ViewHeight, &RenderContext);
+		}
+	}
+	// bestclient
 
 	if(g_Config.m_ClOverlayEntities != 100)
+		return;
+
+	if(!m_Loaded)
 		return;
 
 	CMapLayers::OnRender();

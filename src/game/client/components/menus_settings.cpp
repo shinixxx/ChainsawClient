@@ -8,10 +8,20 @@
 
 #include <engine/graphics.h>
 #include <engine/shared/config.h>
+// bestclient
+#include <engine/updater.h>
+#include <SDL.h>
+// bestclient
 
 #include <game/client/components/menu_background.h>
 #include <game/client/gameclient.h>
 #include <game/client/ui.h>
+#include <game/client/ui_listbox.h> // bestclient
+// bestclient
+#include <game/client/components/bestclient/ui_theme/settings_nav.h>
+#include <game/client/components/bestclient/ui_theme/style.h>
+#include <game/client/components/bestclient/settings_search.h>
+// bestclient
 #include <game/localization.h>
 
 void CMenus::SetNeedSendInfo()
@@ -22,12 +32,80 @@ void CMenus::SetNeedSendInfo()
 		m_NeedSendinfo = true;
 }
 
+CUi::EPopupMenuFunctionResult CMenus::PopupSettingsCountrySelection(void *pContext, CUIRect View, bool Active) // bestclient
+{
+	SPopupSettingsCountrySelectionContext *pPopupContext = static_cast<SPopupSettingsCountrySelectionContext *>(pContext);
+	CMenus *pMenus = pPopupContext->m_pMenus;
+
+	static CListBox s_ListBox;
+	s_ListBox.SetActive(Active);
+	s_ListBox.DoStart(50.0f, pMenus->GameClient()->m_CountryFlags.Num(), 8, 1, -1, &View, false);
+
+	if(pPopupContext->m_New)
+	{
+		pPopupContext->m_New = false;
+		s_ListBox.ScrollToSelected();
+	}
+
+	for(size_t i = 0; i < pMenus->GameClient()->m_CountryFlags.Num(); ++i)
+	{
+		const CCountryFlags::CCountryFlag &Entry = pMenus->GameClient()->m_CountryFlags.GetByIndex(i);
+		const CListboxItem Item = s_ListBox.DoNextItem(&Entry, Entry.m_CountryCode == pPopupContext->m_Selection);
+		if(!Item.m_Visible)
+			continue;
+
+		CUIRect FlagRect, Label;
+		Item.m_Rect.Margin(5.0f, &FlagRect);
+		FlagRect.HSplitBottom(12.0f, &FlagRect, &Label);
+		Label.HSplitTop(2.0f, nullptr, &Label);
+		const float OldWidth = FlagRect.w;
+		FlagRect.w = FlagRect.h * 2.0f;
+		FlagRect.x += (OldWidth - FlagRect.w) / 2.0f;
+		pMenus->GameClient()->m_CountryFlags.Render(Entry.m_CountryCode, ColorRGBA(1.0f, 1.0f, 1.0f, 1.0f), FlagRect.x, FlagRect.y, FlagRect.w, FlagRect.h);
+		pMenus->Ui()->DoLabel(&Label, Entry.m_aCountryCodeString, 10.0f, TEXTALIGN_MC);
+	}
+
+	const int NewSelected = s_ListBox.DoEnd();
+	if(NewSelected >= 0 && (size_t)NewSelected < pMenus->GameClient()->m_CountryFlags.Num())
+		pPopupContext->m_Selection = pMenus->GameClient()->m_CountryFlags.GetByIndex(NewSelected).m_CountryCode;
+	if(s_ListBox.WasItemSelected() || s_ListBox.WasItemActivated())
+	{
+		if(pPopupContext->m_pCountry != nullptr && NewSelected >= 0 && (size_t)NewSelected < pMenus->GameClient()->m_CountryFlags.Num())
+		{
+			*pPopupContext->m_pCountry = pPopupContext->m_Selection;
+			pMenus->SetNeedSendInfo();
+		}
+		return CUi::POPUP_CLOSE_CURRENT;
+	}
+
+	return CUi::POPUP_KEEP_OPEN;
+} // bestclient
+
 void CMenus::RenderSettings(CUIRect MainView)
 {
+	// bestclient
+	if(m_AssetsEditorState.m_Open)
+		SDL_ShowCursor(SDL_ENABLE);
+	if(m_AssetsEditorState.m_Open && m_AssetsEditorState.m_ExploreSide >= 0 && !Ui()->IsPopupOpen() && Ui()->ConsumeHotkey(CUi::HOTKEY_ESCAPE))
+		m_AssetsEditorState.m_ExploreSide = -1;
+	if(m_AssetsEditorState.m_Open && m_AssetsEditorState.m_ExploreSide < 0 && g_Config.m_UiSettingsPage == SETTINGS_ASSETS)
+	{
+		RenderAssetsEditorScreen(*Ui()->Screen());
+		return;
+	}
+	// bestclient
+
 	// render background
 	CUIRect Button, TabBar, RestartBar;
-	MainView.VSplitRight(120.0f, &MainView, &TabBar);
-	MainView.Draw(ms_ColorTabbarActive, IGraphics::CORNER_B, 10.0f);
+	// bestclient
+	const float TabBarWidth = 120.0f;
+	const bool NavOnLeft = BestClientUiTheme::IsSettingsNavOnLeft();
+	if(NavOnLeft)
+		MainView.VSplitLeft(TabBarWidth, &TabBar, &MainView);
+	else
+		MainView.VSplitRight(TabBarWidth, &MainView, &TabBar);
+	BestClientUiTheme::DrawUiMainPanel(&MainView, ms_ColorTabbarActive, false, IGraphics::CORNER_B, 10.0f);
+	// bestclient
 	MainView.Margin(20.0f, &MainView);
 
 	const bool NeedRestart = m_NeedRestartGraphics || m_NeedRestartSound || m_NeedRestartUpdate;
@@ -37,93 +115,77 @@ void CMenus::RenderSettings(CUIRect MainView)
 		MainView.HSplitBottom(10.0f, &MainView, nullptr);
 	}
 
+	if(g_Config.m_UiSettingsPage == SETTINGS_LANGUAGE || g_Config.m_UiSettingsPage == SETTINGS_PLAYER) // bestclient
+		g_Config.m_UiSettingsPage = g_Config.m_UiSettingsPage == SETTINGS_LANGUAGE ? SETTINGS_GENERAL : SETTINGS_TEE; // bestclient
+
 	TabBar.HSplitTop(50.0f, &Button, &TabBar);
-	Button.Draw(ms_ColorTabbarActive, IGraphics::CORNER_BR, 10.0f);
+	// bestclient
+	BestClientUiTheme::DrawUiMainPanel(&Button, ms_ColorTabbarActive, false, NavOnLeft ? IGraphics::CORNER_BL : IGraphics::CORNER_BR, 10.0f);
+	const bool ExploreLockCorner = m_AssetsEditorState.m_Open && m_AssetsEditorState.m_ExploreSide >= 0;
+	if(!ExploreLockCorner)
+	{
+		BestClientSettingsSearch::Update(Client()->RenderFrameTime());
+		BestClientSettingsSearch::RenderCornerButton(this, Ui(), GameClient(), Input(), Button);
+	}
+	// bestclient
 
-	const char *apTabs[SETTINGS_LENGTH] = {
-		Localize("Language"),
-		Localize("General"),
-		Localize("Player"),
-		Client()->IsSixup() ? "Tee 0.7" : Localize("Tee"),
-		Localize("Appearance"),
-		Localize("Controls"),
-		Localize("Graphics"),
-		Localize("Sound"),
-		Localize("DDNet"),
-		Localize("Assets"),
-		Localize("Credits")};
-	static CButtonContainer s_aTabButtons[SETTINGS_LENGTH];
-
-	for(int i = 0; i < SETTINGS_LENGTH; i++)
+	// bestclient
+	if(BestClientUiTheme::IsNewTabOption())
 	{
-		TabBar.HSplitTop(10.0f, nullptr, &TabBar);
-		TabBar.HSplitTop(26.0f, &Button, &TabBar);
-		if(DoButton_MenuTab(&s_aTabButtons[i], apTabs[i], g_Config.m_UiSettingsPage == i, &Button, IGraphics::CORNER_R, &m_aAnimatorsSettingsTab[i]))
-			g_Config.m_UiSettingsPage = i;
-	}
-
-	if(g_Config.m_UiSettingsPage == SETTINGS_LANGUAGE)
-	{
-		GameClient()->m_MenuBackground.ChangePosition(CMenuBackground::POS_SETTINGS_LANGUAGE);
-		RenderLanguageSettings(MainView);
-	}
-	else if(g_Config.m_UiSettingsPage == SETTINGS_GENERAL)
-	{
-		GameClient()->m_MenuBackground.ChangePosition(CMenuBackground::POS_SETTINGS_GENERAL);
-		RenderSettingsGeneral(MainView);
-	}
-	else if(g_Config.m_UiSettingsPage == SETTINGS_PLAYER)
-	{
-		GameClient()->m_MenuBackground.ChangePosition(CMenuBackground::POS_SETTINGS_PLAYER);
-		RenderSettingsPlayer(MainView);
-	}
-	else if(g_Config.m_UiSettingsPage == SETTINGS_TEE)
-	{
-		GameClient()->m_MenuBackground.ChangePosition(CMenuBackground::POS_SETTINGS_TEE);
-		if(Client()->IsSixup())
-			RenderSettingsTee7(MainView);
-		else
-			RenderSettingsTee(MainView);
-	}
-	else if(g_Config.m_UiSettingsPage == SETTINGS_APPEARANCE)
-	{
-		GameClient()->m_MenuBackground.ChangePosition(CMenuBackground::POS_SETTINGS_APPEARANCE);
-		RenderSettingsAppearance(MainView);
-	}
-	else if(g_Config.m_UiSettingsPage == SETTINGS_CONTROLS)
-	{
-		GameClient()->m_MenuBackground.ChangePosition(CMenuBackground::POS_SETTINGS_CONTROLS);
-		m_MenusSettingsControls.Render(MainView);
-	}
-	else if(g_Config.m_UiSettingsPage == SETTINGS_GRAPHICS)
-	{
-		GameClient()->m_MenuBackground.ChangePosition(CMenuBackground::POS_SETTINGS_GRAPHICS);
-		RenderSettingsGraphics(MainView);
-	}
-	else if(g_Config.m_UiSettingsPage == SETTINGS_SOUND)
-	{
-		GameClient()->m_MenuBackground.ChangePosition(CMenuBackground::POS_SETTINGS_SOUND);
-		RenderSettingsSound(MainView);
-	}
-	else if(g_Config.m_UiSettingsPage == SETTINGS_DDNET)
-	{
-		GameClient()->m_MenuBackground.ChangePosition(CMenuBackground::POS_SETTINGS_DDNET);
-		RenderSettingsDDNet(MainView);
-	}
-	else if(g_Config.m_UiSettingsPage == SETTINGS_ASSETS)
-	{
-		GameClient()->m_MenuBackground.ChangePosition(CMenuBackground::POS_SETTINGS_ASSETS);
-		RenderSettingsAssets(MainView);
-	}
-	else if(g_Config.m_UiSettingsPage == SETTINGS_CREDITS)
-	{
-		GameClient()->m_MenuBackground.ChangePosition(CMenuBackground::POS_SETTINGS_CREDITS);
-		RenderSettingsCredits(MainView);
+		RenderSettingsNavNewStyle(TabBar);
 	}
 	else
 	{
-		dbg_assert_failed("ui_settings_page invalid");
+		RenderChainsawTabButton(TabBar); // chainsaw
+		// bestclient
+		const char *apTabs[SETTINGS_LENGTH] = {
+			Localize("Language"),
+			Localize("General"),
+			Localize("Player"),
+			Client()->IsSixup() ? "Tee 0.7" : Localize("Tee"),
+			Localize("Appearance"),
+			Localize("Controls"),
+			Localize("Graphics"),
+			Localize("Sound"),
+			Localize("DDNet"),
+			Localize("Assets"),
+			TCLocalize("TClient"), // TClient
+			Localize("BestClient"), // bestclient
+			Localize("Profiles"), // TClient
+			Localize("Configs"), // TClient
+			Localize("Credits")};
+		static CButtonContainer s_aTabButtons[SETTINGS_LENGTH];
+		const int TabCorners = NavOnLeft ? IGraphics::CORNER_L : IGraphics::CORNER_R;
+
+		for(int i = 0; i < SETTINGS_LENGTH; i++)
+		{
+			if(i == SETTINGS_LANGUAGE || i == SETTINGS_PLAYER) // bestclient
+				continue; // bestclient
+			TabBar.HSplitTop(10.0f, nullptr, &TabBar);
+			TabBar.HSplitTop(26.0f, &Button, &TabBar);
+			// bestclient
+			const bool ExploreLock = m_AssetsEditorState.m_Open && m_AssetsEditorState.m_ExploreSide >= 0;
+			const bool AssetsTab = i == SETTINGS_ASSETS;
+			if(DoButton_MenuTab(&s_aTabButtons[i], apTabs[i], g_Config.m_UiSettingsPage == i, &Button, TabCorners, &m_aAnimatorsSettingsTab[i], nullptr, nullptr, nullptr, 10.0f, nullptr, true, IGraphics::CORNER_NONE, -1.0f, ExploreLock && !AssetsTab ? 0.35f : 1.0f) && (!ExploreLock || AssetsTab))
+			// bestclient
+				g_Config.m_UiSettingsPage = i;
+		}
+		RenderChainsawTabAfter(); // chainsaw
+		// bestclient
 	}
+	// bestclient
+
+	// bestclient
+	if(m_AssetsEditorState.m_Open && m_AssetsEditorState.m_ExploreSide >= 0 && g_Config.m_UiSettingsPage != SETTINGS_ASSETS)
+		m_AssetsEditorState.m_ExploreSide = -1;
+	if(ChainsawTabOpen()) // chainsaw
+		RenderSettingsChainsaw(MainView); // chainsaw
+	else // chainsaw
+	if(BestClientUiTheme::IsNewTabOption())
+		RenderSettingsContentNewStyle(MainView);
+	else
+		RenderSettingsContentLegacyStyle(MainView);
+	// bestclient
 
 	if(NeedRestart)
 	{
@@ -132,9 +194,11 @@ void CMenus::RenderSettings(CUIRect MainView)
 		RestartWarning.VSplitRight(10.0f, &RestartWarning, nullptr);
 		if(m_NeedRestartUpdate)
 		{
-			TextRender()->TextColor(1.0f, 0.4f, 0.4f, 1.0f);
-			Ui()->DoLabel(&RestartWarning, Localize("DDNet Client needs to be restarted to complete update!"), 14.0f, TEXTALIGN_ML);
+			// bestclient
+			TextRender()->TextColor(0.7f, 1.0f, 0.7f, 1.0f);
+			Ui()->DoLabel(&RestartWarning, Localize("BestClient update downloaded! Restart to apply."), 14.0f, TEXTALIGN_ML);
 			TextRender()->TextColor(1.0f, 1.0f, 1.0f, 1.0f);
+			// bestclient
 		}
 		else
 		{
@@ -144,6 +208,15 @@ void CMenus::RenderSettings(CUIRect MainView)
 		static CButtonContainer s_RestartButton;
 		if(DoButton_Menu(&s_RestartButton, Localize("Restart"), 0, &RestartButton))
 		{
+#if defined(CONF_AUTOUPDATE)
+			// bestclient
+			if(m_NeedRestartUpdate)
+			{
+				Updater()->ApplyUpdateAndRestart();
+			}
+			else
+			// bestclient
+#endif
 			if(Client()->State() == IClient::STATE_ONLINE || GameClient()->Editor()->HasUnsavedData())
 			{
 				m_Popup = POPUP_RESTART;
