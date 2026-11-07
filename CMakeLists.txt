@@ -2912,6 +2912,8 @@ if(CLIENT)
     components/bestclient/chainsaw_gpu_hint.cpp # chainsaw: fast graphics card on laptops
     components/bestclient/chainsaw_perf.cpp # chainsaw: maximum optimization mode
     components/bestclient/chainsaw_perf.h # chainsaw
+    components/bestclient/cc_image_wic.cpp # chainsaw: any picture through Windows (WIC)
+    components/bestclient/cc_image_wic.h # chainsaw
     components/bestclient/aspect_ratio.cpp
     components/bestclient/aspect_ratio.h
     components/bestclient/gradient.cpp

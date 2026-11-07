@@ -42,6 +42,7 @@ public:
 		OPT_PRESETS, // chips that set several sliders at once (shader looks)
 		OPT_RENDERER, // note: do the shaders work with the current renderer
 		OPT_PERF_STATUS, // note: what the optimization mode has turned off right now
+		OPT_BG_STATUS, // note: the own picture behind the menu could not be opened
 	};
 
 	enum EFormat
@@ -351,6 +352,8 @@ private:
 
 	std::unordered_map<uint64_t, SCachedText> m_TextCache;
 	char m_aPerfStatus[256] = {};
+	int m_BgFailed = 0; // the chosen own picture could not be opened (shows m_aBgError)
+	char m_aBgError[256] = {};
 
 	int m_aSounds[NUM_SOUNDS];
 	float m_LastSlideSound = 0.0f;
