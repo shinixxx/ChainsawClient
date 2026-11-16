@@ -27,6 +27,8 @@
 
 #include "backend_sdl.h"
 #include "bc_postfx_cmd.h" // chainsaw
+#include "cc_light_cmd.h" // chainsaw
+#include "cc_blocks_cmd.h" // chainsaw
 
 #include "backend/null/backend_null.h"
 
@@ -122,6 +124,8 @@ bool CCommandProcessorFragment_SDL::RunCommand(const CCommandBuffer::SCommand *p
 	case CCommandProcessorFragment_GLBase::CMD_PRE_INIT: break;
 	case CCommandProcessorFragment_GLBase::CMD_POST_SHUTDOWN: break;
 	case CMD_BC_POSTFX: break; // chainsaw: post-processing, only the OpenGL 3.3 renderer draws it
+	case CMD_CC_LIGHT: break; // chainsaw: light and shadows, only the OpenGL 3.3 renderer draws them
+	case CMD_CC_BLOCKS: break; // chainsaw: realistic blocks, only the OpenGL 3.3 renderer draws them
 	default: return false;
 	}
 

@@ -290,6 +290,9 @@ public:
 	CBcFireAxeFx m_BcFireAxeFx; // chainsaw
 	CCcAtmosphere m_CcAtmosphere; // chainsaw: fireflies, storm, wind, snow, fog, embers
 	CCcPostFx m_CcPostFx; // chainsaw: shaders (post-processing)
+	CCcMapBg m_CcMapBg; // chainsaw: own map background
+	CCcLight m_CcLight; // chainsaw: light and shadows over the map
+	CCcBlocks m_CcBlocks; // chainsaw: realistic blocks (ground/stone/water)
 	CBcKaguneHookFx m_BcKaguneHookFx; // chainsaw
 	CBcKaguneGhoulFx m_BcKaguneGhoulFx; // chainsaw
 	// bestclient

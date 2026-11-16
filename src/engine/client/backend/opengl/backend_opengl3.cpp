@@ -1461,6 +1461,8 @@ void CCommandProcessorFragment_OpenGL3_3::Cmd_RenderQuadContainerAsSpriteMultipl
 // bestclient
 #include <game/client/components/bestclient/motion_blur_opengl.inl>
 #include "bc_postfx_opengl3.inl" // chainsaw
+#include "cc_light_opengl3.inl" // chainsaw
+#include "cc_blocks_opengl3.inl" // chainsaw
 // bestclient
 
 #endif

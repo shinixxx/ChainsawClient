@@ -23,6 +23,9 @@
 #include "kagune_ghoul.h" // chainsaw
 #include "cc_atmosphere.h" // chainsaw
 #include "cc_postfx.h" // chainsaw
+#include "cc_light.h" // chainsaw
+#include "cc_blocks.h" // chainsaw
+#include "cc_map_bg.h" // chainsaw
 #include "lightning.h"
 
 #endif

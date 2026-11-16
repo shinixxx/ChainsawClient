@@ -3,6 +3,8 @@
 
 #include "graphics_threaded.h"
 #include "bc_postfx_cmd.h" // chainsaw
+#include "cc_light_cmd.h" // chainsaw
+#include "cc_blocks_cmd.h" // chainsaw
 
 #include <base/dbg.h>
 #include <base/detect.h>
@@ -2924,6 +2926,21 @@ void CGraphics_Threaded::ReadFramebuffer(CImageInfo &Image)
 void CGraphics_Threaded::BcPostFx(const SBcPostFxParams &Params)
 {
 	SCommand_BcPostFx Cmd;
+	Cmd.m_Params = Params;
+	AddCmd(Cmd);
+}
+
+// chainsaw: queue the light pass; the renderer does it where it is in the frame
+void CGraphics_Threaded::CcLight(const SCcLightParams &Params)
+{
+	SCommand_CcLight Cmd;
+	Cmd.m_Params = Params;
+	AddCmd(Cmd);
+}
+// chainsaw: queue the realistic blocks pass; the renderer does it where it is in the frame
+void CGraphics_Threaded::CcBlocks(const SCcBlocksParams &Params)
+{
+	SCommand_CcBlocks Cmd;
 	Cmd.m_Params = Params;
 	AddCmd(Cmd);
 }

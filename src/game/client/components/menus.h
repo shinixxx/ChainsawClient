@@ -657,6 +657,9 @@ protected:
 	void RenderSettingsChainsawFireChain(CUIRect &Column); // chainsaw
 	void RenderSettingsChainsawKagune(CUIRect &Column); // chainsaw
 	void RenderSettingsChainsawFireAxe(CUIRect &Column); // chainsaw
+	void RenderSettingsChainsawFilters(CUIRect &Column); // chainsaw
+	void RenderSettingsChainsawMapBg(CUIRect &Column); // chainsaw
+	void RenderSettingsChainsawLight(CUIRect &Column); // chainsaw
 	// bestclient
 
 	// found in menus_settings_controls.cpp
@@ -1021,6 +1024,7 @@ private:
 	void RenderSettingsBestClientOthers(CUIRect MainView);
 	// bestclient
 	void RenderSettingsBestClientFun(CUIRect MainView);
+	void RenderSettingsBestClientAtmosphereFilterRealisticBlocks(CUIRect &Column); // chainsaw
 	// bestclient
 	void RenderSettingsBestClientInfo(CUIRect MainView); // bestclient
 	void RenderSettingsBestClientConfigPresets(CUIRect MainView); // bestclient

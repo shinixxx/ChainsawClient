@@ -3023,6 +3023,11 @@ if(CLIENT)
     components/bestclient/fx/cc_atmosphere.h # chainsaw
     components/bestclient/fx/cc_weather_core.h # chainsaw: physical rain and snow
     components/bestclient/fx/cc_postfx.cpp # chainsaw
+    components/bestclient/fx/cc_light.cpp # chainsaw
+    components/bestclient/fx/cc_light.h # chainsaw
+    components/bestclient/fx/cc_blocks.cpp # chainsaw
+    components/bestclient/fx/cc_blocks.h # chainsaw
+    components/bestclient/fx/cc_map_bg.cpp # chainsaw
     components/bestclient/fx/cc_postfx.h # chainsaw
     components/bestclient/fx/fire_axe.cpp # chainsaw
     components/bestclient/fx/fire_axe.h # chainsaw
@@ -3034,6 +3039,7 @@ if(CLIENT)
     components/bestclient/fx/kagune.h # chainsaw
     components/bestclient/fx/kagune_core.h # chainsaw
     components/bestclient/menus_kagune.cpp # chainsaw
+    components/bestclient/menus_filters.cpp # chainsaw
     components/bestclient/fx/kagune_hook.cpp # chainsaw
     components/bestclient/fx/kagune_hook.h # chainsaw
     components/bestclient/fx/kagune_hook_core.h # chainsaw

@@ -116,8 +116,34 @@ protected:
 	int m_BcPostFxH = 0;
 	bool m_BcPostFxFailed = false;
 	int m_aBcPostFxLoc[16] = {};
+	// the filter chain: one program per filter, compiled the first time it is used
+	TWGLuint m_aBcFilterProgram[64] = {};
+	bool m_aBcFilterFailed[64] = {};
+	int m_aaBcFilterLoc[64][5] = {};
+	bool BcFilterEnsure(int Id);
 	bool BcPostFxEnsure();
 	void Cmd_BcPostFx(const SCommand_BcPostFx *pCommand) override;
+	// chainsaw: light and shadows (cc_light_opengl3.inl)
+	TWGLuint m_CcLightMapProgram = 0;
+	TWGLuint m_CcLightDrawProgram = 0;
+	TWGLuint m_CcLightTex = 0;
+	TWGLuint m_CcLightFbo = 0;
+	int m_CcLightW = 0;
+	int m_CcLightH = 0;
+	bool m_CcLightFailed = false;
+	bool CcLightEnsure(int Scale);
+	void Cmd_CcLight(const SCommand_CcLight *pCommand) override;
+	// chainsaw: realistic blocks (cc_blocks_opengl3.inl)
+	TWGLuint m_CcBlocksProgram = 0;
+	bool m_CcBlocksFailed = false;
+	bool CcBlocksEnsure();
+	void Cmd_CcBlocks(const SCommand_CcBlocks *pCommand) override;
+	// the styles out of a texture pack: their own shader, the places of its uniforms are looked up once
+	TWGLuint m_CcBlocksPackProgram = 0;
+	bool m_CcBlocksPackFailed = false;
+	int m_aCcBlocksPackLoc[28] = {};
+	bool CcBlocksPackEnsure();
+	void CcBlocksPackDraw(const SCcBlocksParams &P);
 
 	void Cmd_CreateBufferObject(const CCommandBuffer::SCommand_CreateBufferObject *pCommand) override;
 	void Cmd_RecreateBufferObject(const CCommandBuffer::SCommand_RecreateBufferObject *pCommand) override;

@@ -9,6 +9,8 @@
 #ifndef BACKEND_NO_SDL
 #include <engine/client/backend_sdl.h>
 #include <engine/client/bc_postfx_cmd.h> // chainsaw
+#include <engine/client/cc_light_cmd.h> // chainsaw
+#include <engine/client/cc_blocks_cmd.h> // chainsaw
 #endif
 #include <engine/graphics.h>
 
@@ -1157,6 +1159,8 @@ ERunCommandReturnTypes CCommandProcessorFragment_OpenGL::RunCommand(const CComma
 	case CCommandBuffer::CMD_RENDER_QUAD_CONTAINER_EX: Cmd_RenderQuadContainerEx(static_cast<const CCommandBuffer::SCommand_RenderQuadContainerEx *>(pBaseCommand)); break;
 	case CCommandBuffer::CMD_RENDER_QUAD_CONTAINER_SPRITE_MULTIPLE: Cmd_RenderQuadContainerAsSpriteMultiple(static_cast<const CCommandBuffer::SCommand_RenderQuadContainerAsSpriteMultiple *>(pBaseCommand)); break;
 	case CMD_BC_POSTFX: Cmd_BcPostFx(static_cast<const SCommand_BcPostFx *>(pBaseCommand)); break; // chainsaw
+	case CMD_CC_LIGHT: Cmd_CcLight(static_cast<const SCommand_CcLight *>(pBaseCommand)); break; // chainsaw
+	case CMD_CC_BLOCKS: Cmd_CcBlocks(static_cast<const SCommand_CcBlocks *>(pBaseCommand)); break; // chainsaw
 	// bestclient
 	case CCommandBuffer::CMD_SWAP:
 		Cmd_BeforeSwap();

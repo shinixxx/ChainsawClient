@@ -15,6 +15,8 @@ namespace CcImage
 // Decodes pData into RGBA (8 bit per channel, rows top to bottom). A big picture is scaled down while decoding so that it
 // still covers CoverW x CoverH (0 = keep the full size). Returns false when Windows can not read it (pError gets why).
 bool DecodeWic(const void *pData, size_t DataSize, int CoverW, int CoverH, std::vector<uint8_t> &vRgba, int &Width, int &Height, char *pError = nullptr, int ErrorSize = 0);
+// a Windows "open file" dialog: copies the chosen picture into pDestFolder (absolute, UTF-8), its name into pOutName
+bool PickImageAndCopy(const char *pDestFolder, char *pOutName, int OutSize);
 } // namespace CcImage
 
 #endif

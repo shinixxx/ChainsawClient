@@ -1,0 +1,11 @@
+ppb 16
+sharp 1
+soil 120 120
+rock 576 480
+cap 134 69 6
+sprites 320 256 40 32 25
+stonetop 2 32 17 35
+waterdeco 56 7
+water 176 96
+wstrips 528 47 15 3 32
+hang 480 448 48 64 67 3

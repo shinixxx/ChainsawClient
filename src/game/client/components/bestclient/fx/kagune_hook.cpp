@@ -22,8 +22,8 @@ void CBcKaguneHookFx::OnReset()
 
 bool CBcKaguneHookFx::ShowFor(int ClientId) const
 {
-	// part of the kagune: on with it, for the same tees
-	return g_Config.m_BcKagune && in_range(ClientId, MAX_CLIENTS - 1) && (g_Config.m_BcKaguneOthers || BcIsOwnTee(GameClient(), ClientId));
+	// part of the kagune: on with it, for the same tees; bc_kagune_hook 0 = the usual hook chain
+	return g_Config.m_BcKagune && g_Config.m_BcKaguneHook && in_range(ClientId, MAX_CLIENTS - 1) && (g_Config.m_BcKaguneOthers || BcIsOwnTee(GameClient(), ClientId));
 }
 
 bool CBcKaguneHookFx::OnHook(int ClientId, vec2 Pos, vec2 HookPos, int HookState, int HookedPlayer, float Alpha, float Size)

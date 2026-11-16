@@ -2,7 +2,10 @@
 #include "cc_image_wic.h"
 
 #if defined(_WIN32)
+// the file dialog (commdlg.h) needs the GDI types; this file has no engine headers, so they do not clash
+#undef NOGDI
 #include <windows.h>
+#include <commdlg.h>
 
 #include <propidl.h>
 #include <wincodec.h>
@@ -186,6 +189,43 @@ bool CcImage::DecodeWic(const void *pData, size_t DataSize, int CoverW, int Cove
 	return Ok;
 }
 
+// 09.11: a Windows "open file" dialog for a picture; the file is copied into DestFolder (an absolute UTF-8 path) and its name
+// comes back in pOutName. comdlg32 is loaded at run time, so nothing new has to be linked.
+bool CcImage::PickImageAndCopy(const char *pDestFolder, char *pOutName, int OutSize)
+{
+	using FGetOpenFileNameW = BOOL(WINAPI *)(LPOPENFILENAMEW);
+	HMODULE Dlg = LoadLibraryW(L"comdlg32.dll");
+	if(!Dlg)
+		return false;
+	const auto pfnOpen = reinterpret_cast<FGetOpenFileNameW>(reinterpret_cast<void *>(GetProcAddress(Dlg, "GetOpenFileNameW")));
+	bool Ok = false;
+	wchar_t aFile[MAX_PATH] = L"";
+	OPENFILENAMEW Ofn = {};
+	Ofn.lStructSize = sizeof(Ofn);
+	Ofn.hwndOwner = GetActiveWindow();
+	Ofn.lpstrFilter = L"Pictures\0*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif;*.heic;*.avif;*.tif;*.tiff\0All files\0*.*\0";
+	Ofn.lpstrFile = aFile;
+	Ofn.nMaxFile = MAX_PATH;
+	Ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+	if(pfnOpen && pfnOpen(&Ofn))
+	{
+		const wchar_t *pName = wcsrchr(aFile, L'\\');
+		pName = pName ? pName + 1 : aFile;
+		wchar_t aFolder[MAX_PATH];
+		MultiByteToWideChar(CP_UTF8, 0, pDestFolder, -1, aFolder, MAX_PATH);
+		CreateDirectoryW(aFolder, nullptr);
+		wchar_t aDest[MAX_PATH * 2];
+		_snwprintf(aDest, MAX_PATH * 2, L"%ls\\%ls", aFolder, pName);
+		if(CopyFileW(aFile, aDest, FALSE) || GetLastError() == ERROR_SUCCESS)
+		{
+			WideCharToMultiByte(CP_UTF8, 0, pName, -1, pOutName, OutSize, nullptr, nullptr);
+			Ok = true;
+		}
+	}
+	FreeLibrary(Dlg);
+	return Ok;
+}
+
 #else
 
 bool CcImage::DecodeWic(const void *, size_t, int, int, std::vector<uint8_t> &vRgba, int &Width, int &Height, char *pError, int ErrorSize)
@@ -196,5 +236,9 @@ bool CcImage::DecodeWic(const void *, size_t, int, int, std::vector<uint8_t> &vR
 		pError[0] = '\0';
 	return false;
 }
+
+
+// no file dialog on other systems
+bool CcImage::PickImageAndCopy(const char *, char *, int) { return false; }
 
 #endif

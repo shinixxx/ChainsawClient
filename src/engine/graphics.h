@@ -580,6 +580,10 @@ public:
 	virtual void Swap() = 0;
 	// chainsaw: post-processing pass (bc_postfx_params.h); only the OpenGL 3.3 renderer draws it
 	virtual void BcPostFx(const struct SBcPostFxParams &Params) {}
+	// chainsaw: light and shadows over the map (cc_light_params.h); only the OpenGL 3.3 renderer draws it
+	virtual void CcLight(const struct SCcLightParams &Params) {}
+	// chainsaw: realistic blocks (cc_blocks_params.h); only the OpenGL 3.3 renderer draws it
+	virtual void CcBlocks(const struct SCcBlocksParams &Params) {}
 	virtual int GetNumScreens() const = 0;
 	virtual const char *GetScreenName(int Screen) const = 0;
 

@@ -161,6 +161,7 @@ void CGameClient::OnConsoleInit()
 					      &m_BcAutoMargin, // bestclient
 					      &m_MapLayersForeground,
 					      &m_MovingTilesForeground, // TClient
+					      &m_CcBlocks, // chainsaw: realistic blocks, over the tiles of the map and under the effects
 					      &m_Outlines, // TClient
 					      &m_Mumble, // TClient
 					      &m_Pet, // TClient
@@ -189,6 +190,7 @@ void CGameClient::OnConsoleInit()
 					      &m_WeaponVfx,
 					      // bestclient
 					      &m_Particles.m_RenderExplosions,
+					      &m_CcLight, // chainsaw: light and shadows, after the world and before the names
 					      &m_NamePlates,
 					      &m_GifBubbles, // bestclient
 					      &m_ChatBubbles, // bestclient
@@ -201,6 +203,7 @@ void CGameClient::OnConsoleInit()
 					      &m_FreezeBars,
 					      &m_DamageInd,
 					      &m_CcPostFx, // chainsaw: shaders, after the world and before the HUD
+					      &m_CcMapBg, // chainsaw: own map background (drawn by the background map layers)
 					      &m_PlayerIndicator, // TClient
 					      &m_Mod, // TClient
 					      &m_CustomCommunities, // TClient

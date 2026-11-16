@@ -139,6 +139,15 @@ void CCcAtmosphere::Spawn(SPart &P, int Kind, bool Anywhere)
 		if(!Anywhere)
 			P.m_Pos.y = m_View.m_Y0 - random_float(0.0f, H * 0.2f);
 		MakeWorldly(P, g_Config.m_BcAtmRainPhysics != 0, false, Anywhere);
+		if(P.m_World)
+		{
+			// 08.11: the drops of BestClient's weather (the user found them more real): thin quick streaks, a little
+			// slower, short lives; the size is a factor here (the streak is 26 units long times it)
+			P.m_Vel = vec2(0.0f, random_float(850.0f, 1050.0f));
+			P.m_Size = random_float(0.8f, 1.2f);
+			P.m_LifeSpan = random_float(0.3f, 0.6f);
+			P.m_Life = Anywhere ? random_float(0.0f, P.m_LifeSpan) : 0.0f;
+		}
 		break;
 	case KIND_SNOW:
 		P.m_Z = random_float(0.3f, 1.0f);
@@ -582,9 +591,19 @@ void CCcAtmosphere::Draw()
 			const float LenScale = g_Config.m_BcAtmRainLength / 100.0f;
 			const float Angle = std::atan2(1.0f, m_WindX * 450.0f / 1500.0f);
 			const vec2 Fall = normalize(vec2(m_WindX * 450.0f / 1500.0f, 1.0f));
+			const ColorRGBA RainColor = Cfg(g_Config.m_BcAtmRainColor);
 			for(const SPart &P : m_vRain)
 			{
-				const ColorRGBA c(0.72f, 0.8f, 0.95f, Opacity * (0.35f + 0.65f * P.m_Z) * WorldFade(P));
+				if(P.m_World)
+				{
+					// like BestClient's rain: a thin streak 26 units long (times its size) along its own flight, in world units
+					const vec2 Dir = normalize(vec2(m_WindX * 450.0f, P.m_Vel.y));
+					const float Len = 26.0f * P.m_Size * LenScale;
+					const float Alpha = std::min(1.0f, Opacity * 1.2f * P.m_Size) * WorldFade(P);
+					CcFx::QuadRotated(Graphics(), P.m_Pos - Dir * (Len * 0.5f), Len, 2.2f, angle(Dir), Atlas.m_Glow, RainColor.WithAlpha(Alpha));
+					continue;
+				}
+				const ColorRGBA c = RainColor.WithAlpha(Opacity * (0.35f + 0.65f * P.m_Z) * WorldFade(P));
 				const float Len = P.m_Size * LenScale * P.m_Z * Px * 1.6f;
 				// a drop in the world: the streak trails behind its head, so it does not reach into the block it falls on
 				const vec2 Center = P.m_World ? P.m_Pos - Fall * (Len * 0.5f) : P.m_Pos;
@@ -602,11 +621,11 @@ void CCcAtmosphere::Draw()
 
 	// 2 additive: snow, fireflies, embers, wind streaks, shooting stars, lightning
 	const bool AnyLight = !m_vSnow.empty() || !m_vFlies.empty() || !m_vEmbers.empty() || !m_vStreaks.empty() || !m_vStars.empty() || !m_vBolts.empty() || m_Flash > 0.0f ||
-			      !m_Weather.m_vCrowns.empty() || !m_Weather.m_vPuddles.empty();
+			      !m_Weather.m_vCrowns.empty() || !m_Weather.m_vPuddles.empty() || !m_Weather.m_vPiles.empty();
 	if(!AnyLight)
 		return;
 	CcFx::Begin(Graphics(), Atlas.m_Texture, true);
-	if(!m_Weather.m_vCrowns.empty() || !m_Weather.m_vPuddles.empty())
+	if(!m_Weather.m_vCrowns.empty() || !m_Weather.m_vPuddles.empty() || !m_Weather.m_vPiles.empty())
 		DrawWeatherAdditive(Atlas);
 	if(!m_vSnow.empty())
 	{
@@ -731,20 +750,72 @@ void CCcAtmosphere::DrawWeatherNormal(const CcFx::CAtlas &Atlas)
 		const ColorRGBA Body(Snow.r * 0.65f + 0.78f * 0.35f, Snow.g * 0.65f + 0.84f * 0.35f, Snow.b * 0.65f + 0.95f * 0.35f, 0.97f);
 		const ColorRGBA Rim(std::min(1.0f, Snow.r * 1.05f + 0.05f), std::min(1.0f, Snow.g * 1.05f + 0.05f), std::min(1.0f, Snow.b * 1.05f + 0.05f), 0.9f);
 		constexpr float STEP = CcWeather::TILE / (CcWeather::PILE_SAMPLES - 1);
+		// 08.11: bc_atm_snow_quality - 0 = pixel steps, 100 = soft real snow (smooth curve, light on top, blue shade
+		// at the bottom, small lumps); the sparkles of the high end are in DrawWeatherAdditive
+		const float Q = std::clamp(g_Config.m_BcAtmSnowQuality / 100.0f, 0.0f, 1.0f);
+		const auto HeightAt = [&](const CcWeather::SPile &P, float x) {
+			// Catmull-Rom through the heights, x in 0..TILE
+			const float f = std::clamp(x / STEP, 0.0f, (float)(CcWeather::PILE_SAMPLES - 1));
+			const int i = std::min((int)f, CcWeather::PILE_SAMPLES - 2);
+			const float t = f - i;
+			const float p0 = P.m_aH[std::max(i - 1, 0)], p1 = P.m_aH[i], p2 = P.m_aH[i + 1], p3 = P.m_aH[std::min(i + 2, CcWeather::PILE_SAMPLES - 1)];
+			const float h = 0.5f * (2.0f * p1 + (p2 - p0) * t + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t * t + (3.0f * p1 - p0 - 3.0f * p2 + p3) * t * t * t);
+			return std::max(0.0f, h);
+		};
+		const CcFx::CUv &White = Atlas.m_White;
+		const auto Quad4 = [&](vec2 P0, vec2 P1, vec2 P2, vec2 P3, ColorRGBA C0, ColorRGBA C1, ColorRGBA C2, ColorRGBA C3) {
+			Graphics()->QuadsSetSubsetFree(White.m_U0, White.m_V0, White.m_U0, White.m_V0, White.m_U0, White.m_V0, White.m_U0, White.m_V0);
+			Graphics()->SetColor4(C0, C1, C2, C3);
+			const IGraphics::CFreeformItem Item(P0, P1, P2, P3);
+			Graphics()->QuadsDrawFreeform(&Item, 1);
+			CcFx::CountQuads(1);
+		};
+		const ColorRGBA Shade(Body.r * 0.72f, Body.g * 0.78f, std::min(1.0f, Body.b * 0.95f + 0.04f), Body.a);
 		for(const CcWeather::SPile &P : m_Weather.m_vPiles)
 		{
 			const float Left = P.m_Tx * CcWeather::TILE, Top = P.m_Ty * CcWeather::TILE + 0.6f;
 			if(!Sees(Left + CcWeather::TILE * 0.5f, Top))
 				continue;
-			for(int i = 0; i + 1 < CcWeather::PILE_SAMPLES; i++)
+			if(Q < 0.15f)
 			{
-				const float h0 = P.m_aH[i], h1 = P.m_aH[i + 1];
+				// pixels: square cells, the top row brighter
+				const float Cell = 2.0f + 2.0f * (0.15f - Q) / 0.15f;
+				for(float x = 0.0f; x < CcWeather::TILE - 0.01f; x += Cell)
+				{
+					const float h = std::floor(HeightAt(P, x + Cell * 0.5f) / Cell + 0.5f) * Cell;
+					if(h <= 0.0f)
+						continue;
+					const float x0 = Left + x, x1 = std::min(Left + x + Cell, Left + CcWeather::TILE);
+					CcFx::Shape(Graphics(), vec2(x0, Top - h + Cell), vec2(x1, Top - h + Cell), vec2(x0, Top + 1.2f), vec2(x1, Top + 1.2f), Body);
+					CcFx::Shape(Graphics(), vec2(x0, Top - h), vec2(x1, Top - h), vec2(x0, Top - h + Cell), vec2(x1, Top - h + Cell), Rim);
+				}
+				continue;
+			}
+			// smooth: more pieces and more light the higher the quality
+			const int Pieces = (CcWeather::PILE_SAMPLES - 1) * (1 + (int)std::lround(Q * 4.0f));
+			const float Seg = CcWeather::TILE / Pieces;
+			const float Lumps = Q > 0.5f ? (Q - 0.5f) * 0.7f : 0.0f;
+			const auto Surface = [&](float x) {
+				const float h = HeightAt(P, x);
+				if(h < 0.15f)
+					return 0.0f;
+				// small lumps of real snow, steady in time
+				return h + Lumps * std::min(1.0f, h) * std::sin((Left + x) * 0.9f + P.m_Ty * 1.7f) * std::sin((Left + x) * 0.37f);
+			};
+			for(int i = 0; i < Pieces; i++)
+			{
+				const float xa = i * Seg, xb = xa + Seg;
+				const float h0 = Surface(xa), h1 = Surface(xb);
 				if(h0 < 0.15f && h1 < 0.15f)
 					continue;
-				const float x0 = Left + i * STEP, x1 = x0 + STEP;
-				CcFx::Shape(Graphics(), vec2(x0, Top - h0), vec2(x1, Top - h1), vec2(x0, Top + 1.2f), vec2(x1, Top + 1.2f), Body);
-				const float r0 = std::min(h0, 1.1f), r1 = std::min(h1, 1.1f); // a bright rim where the light falls
-				CcFx::Shape(Graphics(), vec2(x0, Top - h0), vec2(x1, Top - h1), vec2(x0, Top - h0 + r0), vec2(x1, Top - h1 + r1), Rim);
+				const float x0 = Left + xa, x1 = Left + xb;
+				// body: light on top, a blue shade at the foot (more of it with quality)
+				const ColorRGBA Foot(Body.r + (Shade.r - Body.r) * Q, Body.g + (Shade.g - Body.g) * Q, Body.b + (Shade.b - Body.b) * Q, Body.a);
+				Quad4(vec2(x0, Top - h0), vec2(x1, Top - h1), vec2(x0, Top + 1.2f), vec2(x1, Top + 1.2f), Body, Body, Foot, Foot);
+				// a bright rim where the light falls, softer at high quality
+				const float r0 = std::min(h0, 1.1f + 0.6f * Q), r1 = std::min(h1, 1.1f + 0.6f * Q);
+				const ColorRGBA RimLow = Rim.WithAlpha(Rim.a * (1.0f - 0.8f * Q));
+				Quad4(vec2(x0, Top - h0), vec2(x1, Top - h1), vec2(x0, Top - h0 + r0), vec2(x1, Top - h1 + r1), Rim, Rim, RimLow, RimLow);
 			}
 		}
 	}
@@ -755,7 +826,7 @@ void CCcAtmosphere::DrawWeatherNormal(const CcFx::CAtlas &Atlas)
 		const float t = D.m_Life / D.m_LifeSpan;
 		const float Speed = length(D.m_Vel);
 		const float Len = D.m_Size * (1.4f + std::min(1.6f, Speed / 220.0f));
-		CcFx::QuadRotated(Graphics(), D.m_Pos, Len * 1.6f, D.m_Size * 1.5f, angle(D.m_Vel), Atlas.m_Glow, ColorRGBA(0.72f, 0.8f, 0.95f, 0.9f * (1.0f - t * t)));
+		CcFx::QuadRotated(Graphics(), D.m_Pos, Len * 1.6f, D.m_Size * 1.5f, angle(D.m_Vel), Atlas.m_Glow, Cfg(g_Config.m_BcAtmRainColor).WithAlpha(0.9f * (1.0f - t * t)));
 	}
 }
 
@@ -764,6 +835,36 @@ void CCcAtmosphere::DrawWeatherAdditive(const CcFx::CAtlas &Atlas)
 {
 	const float Margin = 40.0f;
 	const auto Sees = [&](float x, float y) { return x > m_View.m_X0 - Margin && x < m_View.m_X1 + Margin && y > m_View.m_Y0 - Margin && y < m_View.m_Y1 + Margin; };
+	// 08.11: high quality snow piles twinkle: a few tiny glints on the surface light up now and then
+	const float SnowQ = std::clamp(g_Config.m_BcAtmSnowQuality / 100.0f, 0.0f, 1.0f);
+	if(SnowQ > 0.5f && !m_Weather.m_vPiles.empty())
+	{
+		constexpr float STEP = CcWeather::TILE / (CcWeather::PILE_SAMPLES - 1);
+		const float Strength = (SnowQ - 0.5f) * 2.0f;
+		for(const CcWeather::SPile &P : m_Weather.m_vPiles)
+		{
+			const float Left = P.m_Tx * CcWeather::TILE, Top = P.m_Ty * CcWeather::TILE + 0.6f;
+			if(!Sees(Left + CcWeather::TILE * 0.5f, Top))
+				continue;
+			for(int k = 0; k < 3; k++)
+			{
+				const float Seed = P.m_Tx * 12.9898f + P.m_Ty * 78.233f + k * 37.719f;
+				const float Rand = std::fmod(std::fabs(std::sin(Seed) * 43758.5453f), 1.0f);
+				const float x = Rand * CcWeather::TILE;
+				const int i = std::min((int)(x / STEP), CcWeather::PILE_SAMPLES - 2);
+				const float t = x / STEP - i;
+				const float h = P.m_aH[i] + (P.m_aH[i + 1] - P.m_aH[i]) * t;
+				if(h < 0.6f)
+					continue;
+				const float Twinkle = std::pow(std::max(0.0f, std::sin(m_Time * (1.3f + Rand) + Seed)), 12.0f) * Strength;
+				if(Twinkle < 0.02f)
+					continue;
+				const vec2 At(Left + x, Top - h + 0.4f);
+				CcFx::QuadAxis(Graphics(), At, 4.0f, 4.0f, Atlas.m_Glow, ColorRGBA(0.85f, 0.92f, 1.0f, 0.5f * Twinkle));
+				CcFx::QuadAxis(Graphics(), At, 1.4f, 1.4f, Atlas.m_Glow, ColorRGBA(1.0f, 1.0f, 1.0f, 0.95f * Twinkle));
+			}
+		}
+	}
 	for(const CcWeather::SPuddle &P : m_Weather.m_vPuddles)
 	{
 		const float Top = P.m_Ty * CcWeather::TILE;

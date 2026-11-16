@@ -40,6 +40,14 @@ void CMenus::RenderSettingsChainsawFireAxe(CUIRect &Column)
 		Rows += 2;
 	if(Heat)
 		Rows += 1;
+	const bool Anim = g_Config.m_BcFireAxeAnim != 0;
+	Rows += Anim ? 9 : 1; // animations: switch | + swing, trail, hit, sway, spin, speed, strike, strike size
+	if(Anim && InGame)
+		Rows += 1; // test buttons of the animations
+	if(Anim)
+		Rows += 2; // kind of strike: title + buttons
+	const bool AxeSound = g_Config.m_BcFireAxeSound != 0;
+	Rows += AxeSound ? 4 : 1; // sounds: switch | + volume, others, instead of the hammer
 
 	// the block, like the other ChainsawClient blocks
 	static CButtonContainer s_Reset;
@@ -66,6 +74,20 @@ void CMenus::RenderSettingsChainsawFireAxe(CUIRect &Column)
 			g_Config.m_BcFireAxeSummonTime = DefaultConfig::BcFireAxeSummonTime;
 			g_Config.m_BcFireAxeHeat = DefaultConfig::BcFireAxeHeat;
 			g_Config.m_BcFireAxeHeatTime = DefaultConfig::BcFireAxeHeatTime;
+			g_Config.m_BcFireAxeAnim = DefaultConfig::BcFireAxeAnim;
+			g_Config.m_BcFireAxeAnimSwing = DefaultConfig::BcFireAxeAnimSwing;
+			g_Config.m_BcFireAxeAnimTrail = DefaultConfig::BcFireAxeAnimTrail;
+			g_Config.m_BcFireAxeAnimImpact = DefaultConfig::BcFireAxeAnimImpact;
+			g_Config.m_BcFireAxeAnimIdle = DefaultConfig::BcFireAxeAnimIdle;
+			g_Config.m_BcFireAxeAnimSpin = DefaultConfig::BcFireAxeAnimSpin;
+			g_Config.m_BcFireAxeAnimSpeed = DefaultConfig::BcFireAxeAnimSpeed;
+			g_Config.m_BcFireAxeAnimSlash = DefaultConfig::BcFireAxeAnimSlash;
+			g_Config.m_BcFireAxeAnimSlashSize = DefaultConfig::BcFireAxeAnimSlashSize;
+			g_Config.m_BcFireAxeAnimAttack = DefaultConfig::BcFireAxeAnimAttack;
+			g_Config.m_BcFireAxeSound = DefaultConfig::BcFireAxeSound;
+			g_Config.m_BcFireAxeSoundVolume = DefaultConfig::BcFireAxeSoundVolume;
+			g_Config.m_BcFireAxeSoundOthers = DefaultConfig::BcFireAxeSoundOthers;
+			g_Config.m_BcFireAxeSoundReplace = DefaultConfig::BcFireAxeSoundReplace;
 		}
 		GameClient()->m_Tooltips.DoToolTip(&s_Reset, &ResetButton, BcLocalize("Reset to defaults"));
 		Ui()->DoLabel(&Title, BcLocalize("Golden axe"), HEADLINE_FONT_SIZE, TEXTALIGN_ML);
@@ -88,6 +110,71 @@ void CMenus::RenderSettingsChainsawFireAxe(CUIRect &Column)
 	RowCheck(Block, &g_Config.m_BcFireAxeHeat, BcLocalize("Burns brighter with every hit"));
 	if(Heat)
 		RowSlider(Block, &g_Config.m_BcFireAxeHeatTime, BcLocalize("Burn time after a hit (0.1 s)"), 10, 150, "");
+
+	// animations (08.11)
+	RowCheck(Block, &g_Config.m_BcFireAxeAnim, BcLocalize("Axe animations"));
+	if(Anim)
+	{
+		RowCheck(Block, &g_Config.m_BcFireAxeAnimSwing, BcLocalize("Swing on every hit"));
+		RowCheck(Block, &g_Config.m_BcFireAxeAnimTrail, BcLocalize("Golden trail behind the blade"));
+		RowCheck(Block, &g_Config.m_BcFireAxeAnimImpact, BcLocalize("Kicks back when it hits a tee"));
+		RowCheck(Block, &g_Config.m_BcFireAxeAnimIdle, BcLocalize("Sways in the hand, a glint runs over it"));
+		RowCheck(Block, &g_Config.m_BcFireAxeAnimSpin, BcLocalize("Spins in the hand"));
+		RowCheck(Block, &g_Config.m_BcFireAxeAnimSlash, BcLocalize("Elegant strike: golden crescent and a cross of light"));
+		RowSlider(Block, &g_Config.m_BcFireAxeAnimSlashSize, BcLocalize("Crescent size"), 50, 200, "%");
+		RowSlider(Block, &g_Config.m_BcFireAxeAnimSpeed, BcLocalize("Animation speed"), 50, 200, "%");
+		// the kind of strike
+		{
+			Block.HSplitTop(MARGIN_SMALL, nullptr, &Block);
+			CUIRect KindLabel;
+			Block.HSplitTop(LINE_SIZE, &KindLabel, &Block);
+			Ui()->DoLabel(&KindLabel, BcLocalize("Axe strikes"), 14.0f, TEXTALIGN_ML);
+			Block.HSplitTop(MARGIN_SMALL, nullptr, &Block);
+			CUIRect KindButtons;
+			Block.HSplitTop(LINE_SIZE, &KindButtons, &Block);
+			constexpr int NUM_MODES = 5;
+			static CButtonContainer s_aKind[NUM_MODES];
+			const char *apKind[NUM_MODES] = {BcLocalize("Combo"), BcLocalize("Diagonal"), BcLocalize("Horizontal"), BcLocalize("Head bash"), BcLocalize("Random")};
+			const char *apKindTip[NUM_MODES] = {
+				BcLocalize("Diagonal, diagonal, horizontal, diagonal, head bash; a pause starts over"),
+				BcLocalize("A golden crescent from above"),
+				BcLocalize("A wide flat sweep round the tee"),
+				BcLocalize("The axe head thrusts forward"),
+				BcLocalize("A random kind on every hit")};
+			const float KindW = KindButtons.w / (float)NUM_MODES;
+			for(int Mode = 0; Mode < NUM_MODES; Mode++)
+			{
+				CUIRect Button;
+				KindButtons.VSplitLeft(KindW, &Button, &KindButtons);
+				Button.VMargin(1.0f, &Button);
+				const int Corners = Mode == 0 ? IGraphics::CORNER_L : (Mode == NUM_MODES - 1 ? IGraphics::CORNER_R : IGraphics::CORNER_NONE);
+				if(DoButton_Menu(&s_aKind[Mode], apKind[Mode], g_Config.m_BcFireAxeAnimAttack == Mode, &Button, BUTTONFLAG_LEFT, nullptr, Corners, 5.0f, 0.0f, ColorRGBA(1.0f, 1.0f, 1.0f, 0.5f)))
+					g_Config.m_BcFireAxeAnimAttack = Mode;
+				GameClient()->m_Tooltips.DoToolTip(&s_aKind[Mode], &Button, apKindTip[Mode]);
+			}
+		}
+		if(InGame)
+		{
+			Block.HSplitTop(MARGIN_SMALL, nullptr, &Block);
+			CUIRect AnimLine, AnimLeft, AnimRight;
+			Block.HSplitTop(LINE_SIZE, &AnimLine, &Block);
+			AnimLine.VSplitMid(&AnimLeft, &AnimRight, 10.0f);
+			static CButtonContainer s_TestSwing, s_TestSpin;
+			if(DoButton_Menu(&s_TestSwing, BcLocalize("Test swing"), 0, &AnimLeft))
+				GameClient()->m_BcFireAxeFx.PreviewSwing();
+			if(DoButton_Menu(&s_TestSpin, BcLocalize("Test spin"), 0, &AnimRight))
+				GameClient()->m_BcFireAxeFx.PreviewSpin();
+		}
+	}
+
+	// sounds (08.11)
+	RowCheck(Block, &g_Config.m_BcFireAxeSound, BcLocalize("Axe sounds: swing and hit"));
+	if(AxeSound)
+	{
+		RowSlider(Block, &g_Config.m_BcFireAxeSoundVolume, BcLocalize("Axe sound volume"), 0, 100, "%");
+		RowCheck(Block, &g_Config.m_BcFireAxeSoundOthers, BcLocalize("Axe sounds of other players"));
+		RowCheck(Block, &g_Config.m_BcFireAxeSoundReplace, BcLocalize("Instead of the hammer sounds"));
+	}
 
 	Block.HSplitTop(MARGIN_SMALL, nullptr, &Block);
 	CUIRect Line;

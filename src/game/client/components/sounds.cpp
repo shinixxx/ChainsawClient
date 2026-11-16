@@ -242,6 +242,9 @@ void CSounds::Play(int Channel, int SetId, float Volume)
 
 void CSounds::PlayAt(int Channel, int SetId, float Volume, vec2 Position)
 {
+	// chainsaw: the golden axe sounds replace the hammer swing / hit sounds (bc_fire_axe_sound_replace)
+	if((SetId == SOUND_HAMMER_FIRE || SetId == SOUND_HAMMER_HIT) && GameClient()->m_BcFireAxeFx.ReplaceHammerSound(SetId, Position))
+		return;
 	PlaySampleAt(Channel, GetSampleId(SetId), 0, Volume, Position);
 }
 

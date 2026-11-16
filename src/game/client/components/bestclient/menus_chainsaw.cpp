@@ -71,6 +71,10 @@ void CMenus::RenderSettingsChainsaw(CUIRect MainView)
 	RenderSettingsChainsawFireAxe(LeftView);
 	RightView.VSplitLeft(10.0f, nullptr, &RightView);
 	RenderSettingsChainsawKagune(RightView);
+	RenderSettingsChainsawMapBg(RightView);
+	RenderSettingsChainsawLight(RightView);
+	RenderSettingsBestClientAtmosphereFilterRealisticBlocks(RightView);
+	RenderSettingsChainsawFilters(RightView);
 	// the right column may end lower than the left one
 	CUIRect RightEnd;
 	RightEnd.x = MainView.x;

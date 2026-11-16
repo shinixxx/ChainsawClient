@@ -1256,6 +1256,8 @@ public:
 	void SetScreenSize(int Width, int Height);
 	void Swap() override;
 	void BcPostFx(const SBcPostFxParams &Params) override; // chainsaw
+	void CcLight(const SCcLightParams &Params) override; // chainsaw
+	void CcBlocks(const SCcBlocksParams &Params) override; // chainsaw
 	bool SetVSync(bool State) override;
 	bool SetMultiSampling(uint32_t ReqMultiSamplingCount, uint32_t &MultiSamplingCountBackend) override;
 

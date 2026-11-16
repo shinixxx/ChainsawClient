@@ -8,6 +8,13 @@
      Turning it off burns it away again. bc_fire_axe_summon_switch: the same when you take the hammer.
    - Every hit on a tee heats the axe up (bc_fire_axe_heat): it glows brighter and brighter and burns with fire, the
      heat stays bc_fire_axe_heat_time and then cools down.
+   - Animations (bc_fire_axe_anim*, 08.11), all around the grip on top of the hammer's own motion: a wind-up and a hard
+     swing on every hit with a golden trail behind the blade, a kick back when it hits a tee, a little sway and a glint
+     over the blade, a spin in the hand when you take the hammer and now and then while you wait.
+   - The elegant strike (bc_fire_axe_anim_slash): a thin golden crescent sweeps in front of the tee on every swing and
+     a cross of light flashes where the blade hits a tee (the shapes are in fire_axe_slash.h). Three kinds of strike
+     (bc_fire_axe_anim_attack): diagonal, a wide horizontal sweep and a thrust with the axe head, mixed in a combo.
+   - Own sounds (bc_fire_axe_sound*): a soft swing and a hit, a heavier pair for the head bash; data/chainsaw/sounds/axe_*.
    OnRender (after the players) draws the sparks, the tongues and the light of all axes in one batch. */
 #ifndef GAME_CLIENT_COMPONENTS_BESTCLIENT_FX_FIRE_AXE_H
 #define GAME_CLIENT_COMPONENTS_BESTCLIENT_FX_FIRE_AXE_H
@@ -38,9 +45,15 @@ public:
 	// menu buttons, on our own tee
 	void PreviewSummon();
 	void PreviewHit();
+	void PreviewSwing(); // animations (bc_fire_axe_anim*): a swing with a hit
+	void PreviewSpin(); // animations: a spin in the hand
+	// CSounds::PlayAt for SOUND_HAMMER_FIRE / SOUND_HAMMER_HIT: true = a tee with the axe made it, the axe sound
+	// plays instead (bc_fire_axe_sound_replace) and the hammer sound must not
+	bool ReplaceHammerSound(int SoundId, vec2 Pos);
 
 private:
 	static constexpr int MAX_FLAMES = 384;
+	static constexpr int MAX_TRAIL = 12; // samples of the golden trail behind the blade
 
 	struct CTee
 	{
@@ -66,7 +79,63 @@ private:
 		float m_FlameAcc = 0.0f;
 		float m_SparkAcc = 0.0f;
 		bool m_NoWait = false; // the menu test button: play the summon with the menu open
+		// animations (bc_fire_axe_anim*), seconds since they started (large = not playing)
+		float m_SwingT = 100.0f;
+		float m_ImpactT = 100.0f;
+		float m_SpinT = 100.0f;
+		float m_WaitT = 0.0f; // the hammer in hand without swings: an idle spin now and then
+		float m_GlintT = 0.0f;
+		vec2 m_aTrailHead[MAX_TRAIL];
+		vec2 m_aTrailEdge[MAX_TRAIL];
+		float m_aTrailAge[MAX_TRAIL];
+		int m_TrailNum = 0;
+		float m_SlashSide = 1.0f; // every strike sweeps the other way
+		// the kind of the strike (BcAxeSlash::KIND_*, bc_fire_axe_anim_attack) and where it goes
+		int m_AttackKind = 0;
+		int m_Combo = 0;
+		float m_LastAttack = -10.0f;
+		float m_StrikeAim = 0.0f;
+		// the axe sounds: not twice within a moment
+		float m_LastSwingSound = -10.0f;
+		float m_LastHitSound = -10.0f;
 	};
+
+	// the elegant strike (bc_fire_axe_anim_slash, fire_axe_slash.h)
+	static constexpr int MAX_SLASHES = 32;
+	static constexpr int MAX_CUTS = 32;
+	struct CSlash
+	{
+		int m_ClientId;
+		int m_Kind;
+		vec2 m_Pos; // follows the tee
+		float m_Aim;
+		float m_Side;
+		float m_Radius;
+		float m_T;
+		float m_GlitterAcc;
+	};
+	struct CCut
+	{
+		int m_Kind;
+		vec2 m_Pos;
+		float m_Angle;
+		float m_Size;
+		float m_T;
+	};
+
+	// the axe sounds (bc_fire_axe_sound*): a few takes of each, never the same one twice in a row
+	enum
+	{
+		SOUND_SWING = 0,
+		SOUND_HIT,
+		SOUND_BASH_SWING,
+		SOUND_BASH_HIT,
+		NUM_SOUND_SETS
+	};
+	static constexpr int MAX_SOUND_TAKES = 4;
+	int m_aaSounds[NUM_SOUND_SETS][MAX_SOUND_TAKES];
+	int m_aNumSounds[NUM_SOUND_SETS] = {};
+	int m_aLastTake[NUM_SOUND_SETS] = {};
 
 	struct CFlame
 	{
@@ -88,6 +157,10 @@ private:
 	CFlame m_aFlames[MAX_FLAMES];
 	int m_NumFlames = 0;
 	CcFx::CSparks m_Sparks;
+	CSlash m_aSlashes[MAX_SLASHES];
+	int m_NumSlashes = 0;
+	CCut m_aCuts[MAX_CUTS];
+	int m_NumCuts = 0;
 	float m_LastTime = -1.0f;
 	bool m_WasOn = false;
 
@@ -105,6 +178,26 @@ private:
 	void CheckHit(int ClientId);
 	void UpdateTee(int ClientId, float Dt, bool MenuOpen);
 	void UpdateFlames(float Dt);
+	// animations: extra turn around the grip (radians, + = the way the hammer swings), size and glint of this frame
+	bool AnimOn() const;
+	float AnimSpeed() const;
+	void AnimPose(int ClientId, float &Turn, float &Scale, float &Glint) const;
+	void UpdateAnim(int ClientId, float Dt);
+	void DrawTrail(const CTee &Tee, float Alpha);
+	// the elegant strike
+	bool SlashOn() const;
+	vec2 StrikeDir(int ClientId) const;
+	void AddSlash(int ClientId);
+	void AddCut(int ClientId, vec2 Pos, float Angle);
+	int PickAttack(CTee &Tee) const;
+	void StartAttack(int ClientId);
+	float SwingTime(int Kind) const;
+	// the axe sounds
+	void LoadSounds();
+	bool SoundFor(int ClientId) const;
+	void PlayAxeSound(int ClientId, int Set, vec2 Pos);
+	void UpdateSlashes(float Dt);
+	void DrawSlashes(const CcFx::CView &View);
 };
 
 #endif

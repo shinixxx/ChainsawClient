@@ -1,6 +1,9 @@
 /* ChainsawClient: in-game menu with all our visuals. See chainsaw_gui.h. */
 #include "chainsaw_gui.h"
 
+#include <engine/bc_postfx_params.h>
+#include <game/client/components/bestclient/fx/cc_postfx.h>
+
 #include "bestclient.h"
 #include "chainsaw_gui_bg.h"
 #include "chainsaw_perf.h"
@@ -276,7 +279,25 @@ void CChainsawGui::BuildItems()
 			CC_CHECK(BcFireAxeHeat, "Разгорается с каждым ударом").Desc("Каждое попадание по тее делает топор ярче, и он горит."),
 			CC_SLIDER(BcFireAxeHeatTime, "Горит после удара").Tenths().ShowIf(&g_Config.m_BcFireAxeHeat),
 			MakeButton("Тест появления", ACT_AXE_SUMMON),
-			MakeButton("Тест удара", ACT_AXE_HIT)),
+			MakeButton("Тест удара", ACT_AXE_HIT),
+			MakeGroup("АНИМАЦИИ ТОПОРА"),
+			CC_CHECK(BcFireAxeAnim, "Анимации топора").New().Desc("Размах, след, отдача, покачивание и прокрут. Сними — топор двигается как обычный молот."),
+			CC_CHECK(BcFireAxeAnimSwing, "Размах при ударе").New().Desc("Топор замахивается назад и с силой бьёт вперёд.").ShowIf(&g_Config.m_BcFireAxeAnim),
+			CC_CHECK(BcFireAxeAnimTrail, "Золотой след").New().Desc("За лезвием тянется золотой полумесяц, когда топор бьёт или крутится.").ShowIf(&g_Config.m_BcFireAxeAnim),
+			CC_CHECK(BcFireAxeAnimImpact, "Отдача при попадании").New().Desc("Попав по тее, топор вздрагивает и чуть увеличивается.").ShowIf(&g_Config.m_BcFireAxeAnim),
+			CC_CHECK(BcFireAxeAnimIdle, "Покачивание и блик").New().Desc("Топор слегка покачивается в руке, по лезвию иногда пробегает блик.").ShowIf(&g_Config.m_BcFireAxeAnim),
+			CC_CHECK(BcFireAxeAnimSpin, "Прокрут в руке").New().Desc("Топор прокручивается, когда берёшь молот, и иногда, пока стоишь без ударов.").ShowIf(&g_Config.m_BcFireAxeAnim),
+			CC_CHECK(BcFireAxeAnimSlash, "Изящный удар").New().Desc("При каждом ударе перед тее проносится тонкий золотой полумесяц, а там, где топор попал по тее, вспыхивает крест из света.").ShowIf(&g_Config.m_BcFireAxeAnim),
+			CC_SLIDER(BcFireAxeAnimSlashSize, "Размер полумесяца").New().ShowIf(&g_Config.m_BcFireAxeAnim),
+			CC_SLIDER(BcFireAxeAnimSpeed, "Скорость анимаций").New().ShowIf(&g_Config.m_BcFireAxeAnim),
+			CC_CHOICE(BcFireAxeAnimAttack, "Удары топора", "Комбо", "Диагональ", "Горизонт.", "Головой", "Случайно").New().Desc("Комбо: диагональ, диагональ, горизонтальный, диагональ, удар головой топора. Пауза начинает заново.").ShowIf(&g_Config.m_BcFireAxeAnim),
+			MakeButton("Тест удара (следующий в комбо)", ACT_AXE_SWING),
+			MakeButton("Тест прокрута", ACT_AXE_SPIN),
+			MakeGroup("ЗВУКИ ТОПОРА"),
+			CC_CHECK(BcFireAxeSound, "Звуки топора").New().Desc("Свои тихие звуки взмаха и попадания, у удара головой — свои. Каждый раз немного разные, чтобы не надоедали."),
+			CC_SLIDER(BcFireAxeSoundVolume, "Громкость").New().ShowIf(&g_Config.m_BcFireAxeSound),
+			CC_CHECK(BcFireAxeSoundOthers, "Звуки топора у других игроков").New().ShowIf(&g_Config.m_BcFireAxeSound),
+			CC_CHECK(BcFireAxeSoundReplace, "Вместо звуков молота").New().Desc("Пока в руке топор, обычные звуки взмаха и удара молотом не играют — их заменяют звуки топора. Сними, чтобы слышать и то и другое.").ShowIf(&g_Config.m_BcFireAxeSound)),
 		CC_FEATURE("Ударная волна", "Волна пыли и огня, когда приземляешься с высоты или бьёшь молотом по тее.", BcLandShockwave,
 			CC_CHECK(BcLandShockwaveOthers, "Волна у других игроков"),
 			CC_SLIDER(BcLandShockwaveSens, "Чувствительность").New().Desc("Как легко приземление даёт волну: 0 — только большие падения, 100 — даже маленькие прыжки."),
@@ -327,6 +348,7 @@ void CChainsawGui::BuildItems()
 		CC_FEATURE("Кагуне вместо молота", "Щупальца гуля вместо молота. При каждом ударе бьют туда, куда целишься, и хватаются вместо крюка.", BcKagune,
 			CC_CHECK(BcKaguneOthers, "Кагуне у других игроков"),
 			CC_CHECK(BcKaguneGun, "Оставлять кагуне с пистолетом"),
+			CC_CHECK(BcKaguneHook, "Щупальца вместо крюка").New().Desc("Щупальца хватаются вместо крюка. Сними галочку — вернётся обычный крюк (с кучей щупалец так легче целиться)."),
 			MakeGroup("ВИД"),
 			CC_CHOICE(BcKaguneStyle, "Вид кагуне", "Ринкаку", "Какуджа", "Укаку", "Кость").Desc("Ринкаку — алые ленты с венами. Какуджа — чёрно-фиолетовая броня с красными швами. Укаку — крыло из кристаллов, стреляет осколками. Кость — белые сегменты с красными глазами."),
 			CC_SLIDER(BcKaguneCount, "Щупальца").Suffix(""),
@@ -347,6 +369,39 @@ void CChainsawGui::BuildItems()
 	Atm.m_pName = "Атмосфера";
 	Atm.m_Icon = ICON_STAR;
 	Atm.m_vFeatures = {
+		CC_FEATURE("Свет и тени", "Карта темнеет, а освещают её лампы: свет у тее, свет с неба и твои лампы. Блоки отбрасывают настоящие тени, в лучах видна пыль. Работает на любой карте. Только OpenGL 3.3; эффект тяжёлый — на слабом ПК снизь качество.", BcLight,
+			CC_CHOICE(BcLightQuality, "Качество", "Низкое", "Среднее", "Высокое", "Ультра").New().Desc("Чёткость света и мягкость теней. Чем выше, тем больше нагрузка на видеокарту."),
+			CC_SLIDER(BcLightDark, "Темнота").New().Desc("Насколько темно там, куда свет не достаёт. 0 — карта как обычно, 100 — ночь."),
+			CC_SLIDER(BcLightPower, "Яркость света").New().Desc("Яркость всех источников света сразу."),
+			CC_SLIDER(BcLightHaze, "Лучи в воздухе").New().Desc("Воздух светится в лучах — видно, как свет проходит между блоками."),
+			CC_SLIDER(BcLightDust, "Пылинки").New().Desc("Мелкие пылинки плавают в свете."),
+			CC_SLIDER(BcLightVignette, "Тёмные углы экрана").New(),
+			MakeGroup("СВЕТ У ТЕЕ"),
+			CC_CHECK(BcLightTee, "Тее светятся").New().Desc("Каждый тее несёт с собой свет."),
+			CC_CHECK(BcLightTeeOthers, "Чужие тее тоже").New().ShowIf(&g_Config.m_BcLightTee),
+			CC_CHECK(BcLightTeeSkin, "Свет цвета тее").New().Desc("Свет каждого тее — цвета его скина.").ShowIf(&g_Config.m_BcLightTee),
+			CC_SLIDER(BcLightTeeRange, "Дальность").Suffix(" бл.").New().ShowIf(&g_Config.m_BcLightTee),
+			CC_COLOR(BcLightTeeColor, "Цвет света тее").New(),
+			MakeGroup("СВЕТ С НЕБА"),
+			CC_CHECK(BcLightSun, "Свет с неба").New().Desc("Свет падает сверху туда, где карта открыта к небу: в проёмы, окна, на открытые площадки."),
+			CC_SLIDER(BcLightSunAngle, "Наклон лучей").Suffix("°").New().Desc("0 — прямо сверху, минус — слева, плюс — справа.").ShowIf(&g_Config.m_BcLightSun),
+			CC_SLIDER(BcLightSunPower, "Яркость").New().ShowIf(&g_Config.m_BcLightSun),
+			CC_SLIDER(BcLightSunReach, "Свободных блоков до неба").Suffix(" бл.").New().Desc("Сколько блоков в сторону неба должно быть свободно, чтобы свет прошёл. Меньше — свет попадает и в закрытые пещеры.").ShowIf(&g_Config.m_BcLightSun),
+			CC_COLOR(BcLightSunColor, "Цвет света с неба").New(),
+			MakeGroup("СВОИ ЛАМПЫ"),
+			CC_CHECK(BcLightLamps, "Свои лампы горят").New().Desc("Лампы, которые ты повесил сам. Запоминаются для каждой карты. Удобнее вешать кнопкой: в консоли (F1) напиши bind l cc_light_place — лампа появится там, где прицел."),
+			MakeButton("Повесить лампу здесь", ACT_LIGHT_PLACE),
+			MakeButton("Убрать ближайшую лампу", ACT_LIGHT_REMOVE),
+			MakeButton("Убрать все лампы карты", ACT_LIGHT_CLEAR),
+			CC_SLIDER(BcLightLampRange, "Дальность ламп").Suffix(" бл.").New(),
+			CC_COLOR(BcLightLampColor, "Цвет ламп").New()),
+		CC_FEATURE("Свой фон карты", "Твоя картинка вместо фона карты (всего, что карта рисует позади блоков). Выбери файл кнопкой или накидай картинок в папку и листай. Список с названиями — в Esc → ChainsawClient.", BcMapBg,
+			MakeButton("Выбрать файл…", ACT_MAPBG_PICK, false),
+			MakeButton("Следующий фон", ACT_MAPBG_NEXT, false),
+			MakeButton("Предыдущий фон", ACT_MAPBG_PREV, false),
+			MakeButton("Открыть папку с фонами", ACT_MAPBG_FOLDER, false),
+			CC_SLIDER(BcMapBgParallax, "Движение за камерой").Desc("0 — картинка стоит на месте, больше — плывёт, когда ходишь по карте."),
+			CC_SLIDER(BcMapBgBrightness, "Яркость")),
 		CC_FEATURE("Светлячки", "Тёплые огоньки летают вокруг и мерцают.", BcAtmFireflies,
 			CC_SLIDER(BcAtmFirefliesAmount, "Количество"),
 			CC_SLIDER(BcAtmFirefliesSize, "Размер"),
@@ -364,8 +419,9 @@ void CChainsawGui::BuildItems()
 			CC_SLIDER(BcAtmRainAmount, "Сила дождя"),
 			CC_SLIDER(BcAtmRainLength, "Длина капель"),
 			CC_SLIDER(BcAtmRainOpacity, "Заметность"),
+			CC_COLOR(BcAtmRainColor, "Цвет дождя").New().Desc("Цвет капель и брызг."),
 			CC_SLIDER(BcAtmStormDark, "Темнее мир"),
-			CC_CHECK(BcAtmRainPhysics, "Капли падают на блоки").New().Desc("Капли рядом с тобой разбиваются о блоки на мелкие брызги и собираются в маленькие лужи. Под крышей и в пещерах не капает. Дальние капли летят позади, как раньше."),
+			CC_CHECK(BcAtmRainPhysics, "Капли падают на блоки").New().Desc("Капли рядом с тобой разбиваются о блоки на мелкие брызги и собираются в маленькие лужи. Падают как в BestClient: тонкие быстрые струи с брызгами."),
 			CC_SLIDER(BcAtmRainSplash, "Брызги").New().ShowIf(&g_Config.m_BcAtmRainPhysics),
 			CC_SLIDER(BcAtmRainPuddles, "Лужи").New().Desc("Как быстро набираются лужи. 0 — без луж. Без дождя лужи высыхают.").ShowIf(&g_Config.m_BcAtmRainPhysics),
 			MakeGroup("МОЛНИИ"),
@@ -386,6 +442,7 @@ void CChainsawGui::BuildItems()
 			CC_COLOR(BcAtmSnowColor, "Цвет"),
 			CC_CHECK(BcAtmSnowPhysics, "Снег копится на блоках").New().Desc("Снежинки рядом с тобой ложатся на блоки и на уже лежащий снег, вырастают маленькие сугробы. С краёв снег осыпается."),
 			CC_SLIDER(BcAtmSnowPile, "Высота сугробов").New().ShowIf(&g_Config.m_BcAtmSnowPhysics),
+			CC_SLIDER(BcAtmSnowQuality, "Качество сугробов").New().Desc("0 — пиксельные ступеньки, 100 — мягкий настоящий снег с тенями и блёстками.").ShowIf(&g_Config.m_BcAtmSnowPhysics),
 			CC_SLIDER(BcAtmSnowMelt, "Как быстро тает").New().Desc("Пока идёт снег. 0 — не тает. Когда снег выключен, сугробы тают быстрее.").ShowIf(&g_Config.m_BcAtmSnowPhysics)),
 		CC_FEATURE("Туман", "Мягкий туман плывёт над землёй или по всему экрану.", BcAtmFog,
 			CC_SLIDER(BcAtmFogDensity, "Густота"),
@@ -399,6 +456,13 @@ void CChainsawGui::BuildItems()
 			CC_COLOR(BcAtmEmbersColor, "Цвет")),
 		CC_FEATURE("Звуки погоды", "Шум дождя, гром и ветер.", BcAtmSounds,
 			CC_SLIDER(BcAtmSoundVolume, "Громкость")),
+		CC_FEATURE("Реалистичные блоки", "Hookable = земля с травой, unhookable = камень, freeze = вода. Несколько стилей на выбор. Только OpenGL 3.3.", BcBlocks,
+			CC_CHOICE(BcBlocksStyle, "Стиль", "Фото", "Пиксельный").New().Desc("Как нарисованы блоки. Пиксельный собран из набора текстур и заметно легче для видеокарты."),
+			CC_CHOICE(BcBlocksQuality, "Качество", "Низкое", "Среднее", "Высокое", "Ультра").New().Desc("Чёткость текстур и детализация. Чем выше, тем больше нагрузка на видеокарту."),
+			CC_CHECK(BcBlocksDecor, "Трава и цветы").New().Desc("Травинки и цветы растут над блоками земли."),
+			CC_SLIDER(BcBlocksVines, "Лианы под потолками").New().Desc("Лианы и мох свисают с потолков. Чем больше, тем их гуще; 0 — без лиан. Работают вместе с «Трава и цветы», только пиксельный стиль."),
+			CC_CHECK(BcBlocksOutline, "Тёмная обводка блоков").New().Desc("Чёрная линия по краям земли и камня. Выключи — блоки будут без обводки. Только пиксельный стиль."),
+			CC_SLIDER(BcBlocksWaterClear, "Прозрачность воды").New().Desc("Насколько хорошо видно тех, кто лежит в воде, и карту за ней. 0 — вода почти сплошная. Только пиксельный стиль.")),
 	};
 	m_vCategories.push_back(Atm);
 
@@ -435,6 +499,221 @@ void CChainsawGui::BuildItems()
 			Renderer,
 			CC_SLIDER(BcPostFxChromaAmount, "Сила")),
 	};
+
+	// 08.11: filters, stage 1 of the shaders window - each one a pass of its own, applied in this order
+	SCategory Filters;
+	Filters.m_pName = "Фильтры";
+	Filters.m_Icon = ICON_IMAGE;
+	Filters.m_vFeatures = {
+		MakeFeature("Готовые наборы", "Один клик — и включается подобранный набор фильтров. Свой набор можно сохранить в слот или скопировать текстом и отправить другу — он нажмёт «Вставить набор друга». Сначала выключаются все фильтры, потом ставятся нужные. Потом всё можно подвинуть.", nullptr, nullptr,
+			{MakeButton("Кино", ACT_FLT_PRESET_CINEMA, false),
+				MakeButton("Неон", ACT_FLT_PRESET_NEON, false),
+				MakeButton("Ретро", ACT_FLT_PRESET_RETRO, false),
+				MakeButton("Хоррор", ACT_FLT_PRESET_HORROR, false),
+				MakeButton("Мультик", ACT_FLT_PRESET_CARTOON, false),
+				MakeButton("Картина маслом", ACT_FLT_PRESET_PAINTING, false),
+				MakeButton("Старая игра", ACT_FLT_PRESET_OLDGAME, false),
+				MakeButton("Набросок", ACT_FLT_PRESET_SKETCH, false),
+				MakeButton("Выключить все фильтры", ACT_FLT_PRESET_OFF, false),
+				MakeGroup("МОИ НАБОРЫ"),
+				MakeButton("Сохранить в слот 1", ACT_FLT_SAVE1, false),
+				MakeButton("Сохранить в слот 2", ACT_FLT_SAVE2, false),
+				MakeButton("Сохранить в слот 3", ACT_FLT_SAVE3, false),
+				MakeButton("Загрузить слот 1", ACT_FLT_LOAD1, false),
+				MakeButton("Загрузить слот 2", ACT_FLT_LOAD2, false),
+				MakeButton("Загрузить слот 3", ACT_FLT_LOAD3, false),
+				MakeButton("Скопировать набор (поделиться)", ACT_FLT_COPY, false),
+				MakeButton("Вставить набор друга из буфера", ACT_FLT_PASTE, false)}),
+		CC_FEATURE("Гамма", "Светлее тени или темнее середина, не трогая самое яркое и самое тёмное. Нагрузка: лёгкая.", BcFltGamma,
+			Renderer,
+			CC_SLIDER(BcFltGammaValue, "Гамма").Desc("100 — как есть, больше — светлее."),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_GAMMA, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_GAMMA, false)),
+		CC_FEATURE("Сдвиг цвета", "Все цвета поворачиваются по кругу: красное становится зелёным, синее — красным и т. д. Нагрузка: лёгкая.", BcFltHue,
+			Renderer,
+			CC_SLIDER(BcFltHueShift, "Поворот, градусы").Suffix("°"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_HUE, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_HUE, false)),
+		CC_FEATURE("Чёрно-белое", "Картинка без цвета, как старое кино. Нагрузка: лёгкая.", BcFltBw,
+			Renderer,
+			CC_SLIDER(BcFltBwAmount, "Сила"),
+			CC_SLIDER(BcFltBwContrast, "Контраст"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_BW, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_BW, false)),
+		CC_FEATURE("Сепия", "Тёплые коричневые тона старой фотографии. Нагрузка: лёгкая.", BcFltSepia,
+			Renderer,
+			CC_SLIDER(BcFltSepiaAmount, "Сила"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_SEPIA, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_SEPIA, false)),
+		CC_FEATURE("Негатив", "Все цвета наоборот. Нагрузка: лёгкая.", BcFltInvert,
+			Renderer,
+			CC_SLIDER(BcFltInvertAmount, "Сила"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_INVERT, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_INVERT, false)),
+		CC_FEATURE("Тепловизор", "Тёмное — синее, яркое — красное, жёлтое и белое. Нагрузка: лёгкая.", BcFltThermal,
+			Renderer,
+			CC_SLIDER(BcFltThermalAmount, "Сила"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_THERMAL, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_THERMAL, false)),
+		CC_FEATURE("Ночное зрение", "Зелёная картинка прибора ночного видения с шумом и тёмными краями. Нагрузка: лёгкая.", BcFltNight,
+			Renderer,
+			CC_SLIDER(BcFltNightAmount, "Сила"),
+			CC_SLIDER(BcFltNightNoise, "Шум"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_NIGHTVISION, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_NIGHTVISION, false)),
+		CC_FEATURE("Два тона", "Тени одного цвета, светлое другого — как в кино (по умолчанию синие тени и тёплый свет). Нагрузка: лёгкая.", BcFltSplit,
+			Renderer,
+			CC_SLIDER(BcFltSplitShadow, "Цвет теней").Suffix("°").Desc("Оттенок по кругу: 0 красный, 120 зелёный, 240 синий."),
+			CC_SLIDER(BcFltSplitLight, "Цвет света").Suffix("°"),
+			CC_SLIDER(BcFltSplitAmount, "Сила"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_SPLIT, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_SPLIT, false)),
+		CC_FEATURE("Хоррор", "Бледно-красный мир, тёмные края и стук сердца. Нагрузка: лёгкая.", BcFltHorror,
+			Renderer,
+			CC_SLIDER(BcFltHorrorAmount, "Сила"),
+			CC_SLIDER(BcFltHorrorPulse, "Стук сердца"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_HORROR, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_HORROR, false)),
+		CC_FEATURE("Волны", "Картинка плавно колышется, как под водой или в жару. Нагрузка: лёгкая.", BcFltWaves,
+			Renderer,
+			CC_SLIDER(BcFltWavesStrength, "Сила"),
+			CC_SLIDER(BcFltWavesSpeed, "Скорость"),
+			CC_SLIDER(BcFltWavesSize, "Частота"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_WAVES, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_WAVES, false)),
+		CC_FEATURE("Рыбий глаз", "Картинка выгибается, как через линзу «рыбий глаз». Нагрузка: лёгкая.", BcFltFisheye,
+			Renderer,
+			CC_SLIDER(BcFltFisheyeStrength, "Сила"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_FISHEYE, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_FISHEYE, false)),
+		CC_FEATURE("Пьяный", "Двоится в глазах, картинка плавно качается. Нагрузка: лёгкая.", BcFltDrunk,
+			Renderer,
+			CC_SLIDER(BcFltDrunkStrength, "Сила"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_DRUNK, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_DRUNK, false)),
+		CC_FEATURE("Воронка", "Картинка закручивается вокруг центра. Нагрузка: лёгкая.", BcFltSwirl,
+			Renderer,
+			CC_SLIDER(BcFltSwirlStrength, "Сила"),
+			CC_SLIDER(BcFltSwirlRadius, "Размер"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_SWIRL, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_SWIRL, false)),
+		CC_FEATURE("Размытие", "Мягкая размытая картинка. Нагрузка: средняя.", BcFltBlur,
+			Renderer,
+			CC_SLIDER(BcFltBlurRadius, "Радиус"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_BLUR, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_BLUR, false)),
+		CC_FEATURE("Тилт-шифт", "Резкая только полоса посередине, сверху и снизу размыто — мир как игрушечный. Нагрузка: средняя.", BcFltTiltshift,
+			Renderer,
+			CC_SLIDER(BcFltTiltshiftBlur, "Размытие"),
+			CC_SLIDER(BcFltTiltshiftFocus, "Где резко").Desc("0 — внизу экрана, 100 — вверху."),
+			CC_SLIDER(BcFltTiltshiftBand, "Ширина резкой полосы"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_TILTSHIFT, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_TILTSHIFT, false)),
+		CC_FEATURE("Сон", "Мягкое сияние вокруг светлого, как во сне. Нагрузка: средняя.", BcFltDream,
+			Renderer,
+			CC_SLIDER(BcFltDreamAmount, "Сила"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_DREAM, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_DREAM, false)),
+		CC_FEATURE("Постеризация", "Мало оттенков у каждого цвета — как на плакате. Нагрузка: лёгкая.", BcFltPosterize,
+			Renderer,
+			CC_SLIDER(BcFltPosterizeLevels, "Оттенков").Suffix(""),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_POSTERIZE, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_POSTERIZE, false)),
+		CC_FEATURE("Масляная живопись", "Картинка как нарисованная маслом: мазки кистью, мягкие пятна цвета. Нагрузка: тяжёлая (растёт с размером кисти).", BcFltOil,
+			Renderer,
+			CC_SLIDER(BcFltOilRadius, "Размер кисти").Suffix("").Desc("Большая кисть сильнее грузит видеокарту."),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_OIL, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_OIL, false)),
+		CC_FEATURE("Набросок карандашом", "Белая бумага, контуры и штриховка вместо цвета. Нагрузка: средняя.", BcFltSketch,
+			Renderer,
+			CC_SLIDER(BcFltSketchLines, "Контуры"),
+			CC_SLIDER(BcFltSketchHatch, "Штриховка"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_SKETCH, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_SKETCH, false)),
+		CC_FEATURE("Акварель", "Размытые пятна краски на шершавой бумаге. Нагрузка: средняя.", BcFltWatercolor,
+			Renderer,
+			CC_SLIDER(BcFltWatercolorAmount, "Сила"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_WATERCOLOR, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_WATERCOLOR, false)),
+		CC_FEATURE("Мультик", "Плоские оттенки и чёрные контуры — игра как мультфильм. Нагрузка: средняя.", BcFltCartoon,
+			Renderer,
+			CC_SLIDER(BcFltCartoonLevels, "Оттенков").Suffix(""),
+			CC_SLIDER(BcFltCartoonOutline, "Контуры"),
+			CC_SLIDER(BcFltCartoonWidth, "Толщина контуров"),
+			CC_COLOR(BcFltCartoonColor, "Цвет контуров"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_CARTOON, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_CARTOON, false)),
+		CC_FEATURE("Контуры", "Обводит края всего на экране. Нагрузка: средняя.", BcFltEdges,
+			Renderer,
+			CC_SLIDER(BcFltEdgesStrength, "Сила"),
+			CC_SLIDER(BcFltEdgesWidth, "Толщина"),
+			CC_SLIDER(BcFltEdgesOnly, "Только линии").Desc("100 — остаются одни линии, как набросок карандашом."),
+			CC_COLOR(BcFltEdgesColor, "Цвет линий"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_EDGES, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_EDGES, false)),
+		CC_FEATURE("Пиксель-арт", "Крупные пиксели, как в старой игре. Нагрузка: лёгкая.", BcFltPixel,
+			Renderer,
+			CC_SLIDER(BcFltPixelSize, "Размер пикселя").Suffix(""),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_PIXEL, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_PIXEL, false)),
+		CC_FEATURE("Соты", "Картинка из шестиугольников. Нагрузка: лёгкая.", BcFltHex,
+			Renderer,
+			CC_SLIDER(BcFltHexSize, "Размер").Suffix(""),
+			CC_SLIDER(BcFltHexEdges, "Тёмные края"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_HEX, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_HEX, false)),
+		CC_FEATURE("Витраж", "Цветные стёкла неровной формы с тёмными перемычками. Нагрузка: средняя.", BcFltStained,
+			Renderer,
+			CC_SLIDER(BcFltStainedSize, "Размер стёкол").Suffix(""),
+			CC_SLIDER(BcFltStainedLines, "Перемычки"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_STAINED, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_STAINED, false)),
+		CC_FEATURE("Комикс", "Цвета из точек растра, как в напечатанном комиксе. Нагрузка: лёгкая.", BcFltHalftone,
+			Renderer,
+			CC_SLIDER(BcFltHalftoneSize, "Размер точек").Suffix(""),
+			CC_SLIDER(BcFltHalftoneAmount, "Сила"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_HALFTONE, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_HALFTONE, false)),
+		CC_FEATURE("ASCII", "Картинка из букв и знаков, как в терминале. Нагрузка: лёгкая.", BcFltAscii,
+			Renderer,
+			CC_SLIDER(BcFltAsciiSize, "Размер букв").Suffix(""),
+			CC_SLIDER(BcFltAsciiColor, "Цвета картинки").Desc("0 — зелёные буквы старого терминала."),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_ASCII, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_ASCII, false)),
+		CC_FEATURE("Game Boy", "Четыре оттенка зелёного и крупные пиксели старой консоли. Нагрузка: лёгкая.", BcFltGameboy,
+			Renderer,
+			CC_SLIDER(BcFltGameboyAmount, "Сила"),
+			CC_SLIDER(BcFltGameboyPixel, "Размер пикселя").Suffix(""),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_GAMEBOY, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_GAMEBOY, false)),
+		CC_FEATURE("8-бит", "Мало цветов и узор из точек между ними, как в старых играх. Нагрузка: лёгкая.", BcFltDither,
+			Renderer,
+			CC_SLIDER(BcFltDitherLevels, "Оттенков").Suffix(""),
+			CC_SLIDER(BcFltDitherPixel, "Размер пикселя").Suffix(""),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_DITHER, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_DITHER, false)),
+		CC_FEATURE("Глитч", "Картинка иногда ломается: полосы сдвигаются, цвета расходятся. Нагрузка: лёгкая.", BcFltGlitch,
+			Renderer,
+			CC_SLIDER(BcFltGlitchStrength, "Сила"),
+			CC_SLIDER(BcFltGlitchOften, "Как часто"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_GLITCH, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_GLITCH, false)),
+		CC_FEATURE("Видеокассета", "Дрожащая картинка VHS с шумом и разъехавшимися цветами. Нагрузка: лёгкая.", BcFltVhs,
+			Renderer,
+			CC_SLIDER(BcFltVhsStrength, "Сила"),
+			CC_SLIDER(BcFltVhsNoise, "Шум"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_VHS, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_VHS, false)),
+		CC_FEATURE("Старый телевизор", "Выпуклый экран, полосы строк и цветные точки кинескопа. Нагрузка: лёгкая.", BcFltCrt,
+			Renderer,
+			CC_SLIDER(BcFltCrtScanlines, "Полосы"),
+			CC_SLIDER(BcFltCrtCurve, "Выпуклость"),
+			CC_SLIDER(BcFltCrtMask, "Цветные точки"),
+			MakeButton("Применять раньше", ACT_FLT_UP + BC_FILTER_CRT, false),
+			MakeButton("Применять позже", ACT_FLT_DOWN + BC_FILTER_CRT, false)),
+	};
+	// the user (08.11): shaders and filters are one page
+	Shaders.m_vFeatures.insert(Shaders.m_vFeatures.end(), Filters.m_vFeatures.begin(), Filters.m_vFeatures.end());
 	m_vCategories.push_back(Shaders);
 
 	SCategory Perf;
@@ -1985,11 +2264,24 @@ void CChainsawGui::ResetFeature(SFeature &Feature)
 
 void CChainsawGui::RunAction(int Action)
 {
+	// the order of the filter chain: one place earlier or later
+	if(Action >= ACT_FLT_UP && Action < ACT_FLT_UP + NUM_BC_FILTERS)
+	{
+		CCcPostFx::MoveFilter(Action - ACT_FLT_UP, -1);
+		return;
+	}
+	if(Action >= ACT_FLT_DOWN && Action < ACT_FLT_DOWN + NUM_BC_FILTERS)
+	{
+		CCcPostFx::MoveFilter(Action - ACT_FLT_DOWN, 1);
+		return;
+	}
 	const vec2 Pos = GameClient()->m_LocalCharacterPos;
 	switch(Action)
 	{
 	case ACT_AXE_SUMMON: GameClient()->m_BcFireAxeFx.PreviewSummon(); break;
 	case ACT_AXE_HIT: GameClient()->m_BcFireAxeFx.PreviewHit(); break;
+	case ACT_AXE_SWING: GameClient()->m_BcFireAxeFx.PreviewSwing(); break;
+	case ACT_AXE_SPIN: GameClient()->m_BcFireAxeFx.PreviewSpin(); break;
 	case ACT_SHOCKWAVE: GameClient()->m_BcFireIceFx.PreviewShockwave(Pos); break;
 	case ACT_ICE: GameClient()->m_BcFireIceFx.PreviewIce(Pos); break;
 	case ACT_STRIKE: GameClient()->m_BcFireChainFx.PreviewStrike(Pos); break;
@@ -2004,6 +2296,30 @@ void CChainsawGui::RunAction(int Action)
 		ScanBackgrounds();
 		m_BgKey.clear();
 		break;
+	case ACT_FLT_PRESET_OFF:
+	case ACT_FLT_PRESET_CINEMA:
+	case ACT_FLT_PRESET_NEON:
+	case ACT_FLT_PRESET_RETRO:
+	case ACT_FLT_PRESET_HORROR:
+	case ACT_FLT_PRESET_CARTOON:
+	case ACT_FLT_PRESET_PAINTING:
+	case ACT_FLT_PRESET_OLDGAME:
+	case ACT_FLT_PRESET_SKETCH: CCcPostFx::ApplyFilterPreset(CCcPostFx::FILTER_PRESET_OFF + (Action - ACT_FLT_PRESET_OFF)); break;
+	case ACT_FLT_SAVE1:
+	case ACT_FLT_SAVE2:
+	case ACT_FLT_SAVE3: CCcPostFx::SaveSlot(Storage(), Action - ACT_FLT_SAVE1 + 1); break;
+	case ACT_FLT_LOAD1:
+	case ACT_FLT_LOAD2:
+	case ACT_FLT_LOAD3: CCcPostFx::LoadSlot(Storage(), Action - ACT_FLT_LOAD1 + 1); break;
+	case ACT_FLT_COPY: Input()->SetClipboardText(CCcPostFx::ExportFilters().c_str()); break;
+	case ACT_FLT_PASTE: CCcPostFx::ImportFilters(Input()->GetClipboardText().c_str()); break;
+	case ACT_MAPBG_PICK: GameClient()->m_CcMapBg.PickFile(); break;
+	case ACT_MAPBG_NEXT: GameClient()->m_CcMapBg.Step(1); break;
+	case ACT_MAPBG_PREV: GameClient()->m_CcMapBg.Step(-1); break;
+	case ACT_MAPBG_FOLDER: GameClient()->m_CcMapBg.OpenFolder(); break;
+	case ACT_LIGHT_PLACE: GameClient()->m_CcLight.PlaceLamp(false); break;
+	case ACT_LIGHT_REMOVE: GameClient()->m_CcLight.RemoveNearest(); break;
+	case ACT_LIGHT_CLEAR: GameClient()->m_CcLight.ClearLamps(); break;
 	case ACT_TEST_LIGHTNING: GameClient()->m_CcAtmosphere.TestLightning(); break;
 	default: break;
 	}

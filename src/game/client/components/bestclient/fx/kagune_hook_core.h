@@ -20,6 +20,18 @@
 namespace BcKaguneHook
 {
 constexpr int MAX_LIMBS = 3; // the hook + two that hold on next to it
+// 08.11: everything moves faster (a slow tentacle confused the players); the times below were 0.07 / 0.16 /
+// 0.11 + 0.0004 per unit / lag 0.06, 0.09 / coil 0.12 / dig 0.05
+constexpr float HOOK_OUT_TIME = 0.045f; // the hook tentacle leaves the fan
+constexpr float LET_GO_TIME = 0.11f; // back into the fan
+constexpr float REACH_TIME = 0.06f, REACH_TIME_PER_UNIT = 0.00022f;
+constexpr float LAG_ROOT = 0.035f, LAG_TIP = 0.05f; // the body lags behind the tip
+constexpr float COIL_TIME = 0.07f, DIG_TIME = 0.035f;
+// 08.11: a hook right under the tee (standing still) made a helper tentacle grab, let go and grab again every
+// frame or two ("dancing"): helpers only reach out for a hook this far from the tee, and they let go because of
+// being behind / too close / tired only while the tee really moves
+constexpr float HELPER_MIN_HOOK_DIST = 56.0f;
+constexpr float CLIMB_MIN_SPEED = 90.0f;
 constexpr float DIG_DEPTH = 11.0f; // units the tip goes into the block it holds on to (at scale 1)
 
 // DDNet hook states (game/gamecore.h)
@@ -257,7 +269,7 @@ void Pose(CState &S, BcKagune::CTee &K, const CInput &In, BcKagune::CParticles &
 				L.m_Side = -1.0f;
 				L.m_Anchor = HookAt;
 				L.m_Tip = HookAt;
-				L.m_Weight = std::min(1.0f, L.m_Weight + Dt / 0.07f);
+				L.m_Weight = std::min(1.0f, L.m_Weight + Dt / HOOK_OUT_TIME);
 				if(Grabbed && S.m_LastHookState != HOOK_GRABBED_STATE)
 				{
 					const vec2 Dir = normalize(HookAt - K.m_aTentacles[L.m_Slot].m_aPos[0] + vec2(0.001f, 0.0f));
@@ -274,6 +286,8 @@ void Pose(CState &S, BcKagune::CTee &K, const CInput &In, BcKagune::CParticles &
 	{
 		CLimb &L = S.m_aLimbs[i];
 		const bool Wanted = Grabbed && i <= Extra;
+		// a new grab only for a hook that is not right at the tee (one that already holds stays)
+		const bool FarHook = distance(HookAt, In.m_Pos) > HELPER_MIN_HOOK_DIST * In.m_Scale;
 		if(!Wanted)
 		{
 			Let(L);
@@ -282,9 +296,9 @@ void Pose(CState &S, BcKagune::CTee &K, const CInput &In, BcKagune::CParticles &
 		else if(L.m_Mode == LIMB_IDLE)
 		{
 			if(S.m_LastHookState != HOOK_GRABBED_STATE)
-				L.m_Delay = 0.05f + 0.07f * (i - 1) + RandRange(S.m_Seed, 0.0f, 0.03f);
+				L.m_Delay = 0.025f + 0.04f * (i - 1) + RandRange(S.m_Seed, 0.0f, 0.02f);
 			L.m_Delay -= Dt;
-			if(L.m_Delay <= 0.0f)
+			if(L.m_Delay <= 0.0f && FarHook)
 			{
 				// the free tentacle closest to where it will grab
 				const int Slot = PickSlot(S, K, HookAt, false);
@@ -301,7 +315,7 @@ void Pose(CState &S, BcKagune::CTee &K, const CInput &In, BcKagune::CParticles &
 		if(L.m_Mode == LIMB_REACH)
 		{
 			L.m_T += Dt;
-			const float Time = 0.11f + 0.0004f * distance(L.m_From, L.m_Anchor) / In.m_Scale;
+			const float Time = REACH_TIME + REACH_TIME_PER_UNIT * distance(L.m_From, L.m_Anchor) / In.m_Scale;
 			const float t = L.m_T / Time;
 			L.m_Tip = mix(L.m_From, L.m_Anchor, EaseOutBack(Clamp01(t)));
 			L.m_Weight = std::max(L.m_Weight, Smooth(0.0f, 0.35f, t));
@@ -334,11 +348,12 @@ void Pose(CState &S, BcKagune::CTee &K, const CInput &In, BcKagune::CParticles &
 				const float Reach = length(ToHook) * 1.25f + 70.0f * In.m_Scale;
 				const bool Behind = dot(ToTip, ToHook) < 0.35f * Dist * length(ToHook);
 				const bool Tired = Speed > 250.0f * In.m_Scale && L.m_Hold > L.m_HoldFor;
-				if(Dist > Reach || Dist < 22.0f * In.m_Scale || Behind || Tired)
+				const bool Moving = Speed > CLIMB_MIN_SPEED * In.m_Scale;
+				if(Dist > Reach || (Moving && (Dist < 22.0f * In.m_Scale || Behind || Tired)))
 					Let(L);
 			}
 		}
-		else if(L.m_Mode == LIMB_RELEASE && Wanted && L.m_Weight < 0.45f)
+		else if(L.m_Mode == LIMB_RELEASE && Wanted && FarHook && L.m_Weight < 0.45f)
 		{
 			// halfway back to the fan it grabs again, from where its tip is now
 			const vec2 Now = mix(TipOf(K.m_aTentacles[L.m_Slot]), L.m_Tip, L.m_Weight);
@@ -350,7 +365,7 @@ void Pose(CState &S, BcKagune::CTee &K, const CInput &In, BcKagune::CParticles &
 	{
 		if(L.m_Mode != LIMB_RELEASE)
 			continue;
-		L.m_Weight = std::max(0.0f, L.m_Weight - Dt / 0.16f);
+		L.m_Weight = std::max(0.0f, L.m_Weight - Dt / LET_GO_TIME);
 		if(L.m_Weight <= 0.0f)
 			L = CLimb();
 	}
@@ -393,10 +408,10 @@ void Pose(CState &S, BcKagune::CTee &K, const CInput &In, BcKagune::CParticles &
 			L.m_C1Vel = L.m_C2Vel = vec2(0.0f, 0.0f);
 		}
 		// the body lags a little behind the tip: it bends while it moves
-		L.m_C1 = SmoothDamp(L.m_C1, C1Goal, L.m_C1Vel, 0.06f, Dt);
-		L.m_C2 = SmoothDamp(L.m_C2, C2Goal, L.m_C2Vel, 0.09f, Dt);
+		L.m_C1 = SmoothDamp(L.m_C1, C1Goal, L.m_C1Vel, LAG_ROOT, Dt);
+		L.m_C2 = SmoothDamp(L.m_C2, C2Goal, L.m_C2Vel, LAG_TIP, Dt);
 		const bool Coil = L.m_OnTee && L.m_Mode == LIMB_HOLD;
-		L.m_Wrap = SmoothDamp(L.m_Wrap, Coil ? 1.0f : 0.0f, L.m_WrapVel, 0.12f, Dt);
+		L.m_Wrap = SmoothDamp(L.m_Wrap, Coil ? 1.0f : 0.0f, L.m_WrapVel, COIL_TIME, Dt);
 		if(!L.m_OnTee && L.m_Wrap <= 0.02f)
 			L.m_HasCenter = false;
 
@@ -406,7 +421,7 @@ void Pose(CState &S, BcKagune::CTee &K, const CInput &In, BcKagune::CParticles &
 		const float Radius = 25.0f * In.m_Scale;
 		// a tip that holds on to the map goes a bit into the block
 		const bool Anchored = !L.m_OnTee && (&L == &S.m_aLimbs[0] ? In.m_HookState == HOOK_GRABBED_STATE : L.m_Mode == LIMB_HOLD);
-		L.m_Dig = SmoothDamp(L.m_Dig, Anchored ? 1.0f : 0.0f, L.m_DigVel, 0.05f, Dt);
+		L.m_Dig = SmoothDamp(L.m_Dig, Anchored ? 1.0f : 0.0f, L.m_DigVel, DIG_TIME, Dt);
 		vec2 End = L.m_Tip + D * (DIG_DEPTH * In.m_Scale * L.m_Dig);
 		float EntryAngle = 0.0f;
 		if(CoilPoints)

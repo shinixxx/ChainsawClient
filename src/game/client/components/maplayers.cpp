@@ -54,6 +54,13 @@ void CMapLayers::OnRender()
 		return;
 
 	// dynamic parameters for ingame rendering
+	// chainsaw: the own map background takes the place of the background layers
+	if(m_Type == RENDERTYPE_BACKGROUND && GameClient()->m_CcMapBg.Replaces())
+	{
+		GameClient()->m_CcMapBg.Draw();
+		return;
+	}
+
 	m_Params.m_EntityOverlayVal = m_Type == RENDERTYPE_FULL_DESIGN ? 0 : g_Config.m_ClOverlayEntities;
 	m_Params.m_Center = GetCurCamera()->m_Center;
 	m_Params.m_Zoom = GetCurCamera()->m_Zoom;

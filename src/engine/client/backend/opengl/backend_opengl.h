@@ -107,6 +107,8 @@ protected:
 	// bestclient
 	virtual void Cmd_BeforeSwap() {}
 	virtual void Cmd_BcPostFx(const struct SCommand_BcPostFx *pCommand) {} // chainsaw: post-processing (OpenGL 3.3 only)
+	virtual void Cmd_CcLight(const struct SCommand_CcLight *pCommand) {} // chainsaw: light and shadows (OpenGL 3.3 only)
+	virtual void Cmd_CcBlocks(const struct SCommand_CcBlocks *pCommand) {} // chainsaw: realistic blocks (OpenGL 3.3 only)
 	// bestclient
 	virtual void Cmd_ReadPixel(const CCommandBuffer::SCommand_TrySwapAndReadPixel *pCommand);
 	virtual void Cmd_Screenshot(const CCommandBuffer::SCommand_TrySwapAndScreenshot *pCommand);

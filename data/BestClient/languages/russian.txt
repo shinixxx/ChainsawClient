@@ -2843,6 +2843,9 @@ A random kind on every hit
 Keep the kagune with the pistol
 == Не убирать кагуне при пистолете
 
+Tentacles instead of the hook
+== Щупальца вместо крюка
+
 Kind of kagune
 == Вид кагуне
 
@@ -2915,6 +2918,75 @@ Test appear
 Test hit
 == Проверить удар
 
+Axe animations
+== Анимации топора
+
+Swing on every hit
+== Размах при ударе
+
+Golden trail behind the blade
+== Золотой след за лезвием
+
+Kicks back when it hits a tee
+== Отдача при попадании
+
+Sways in the hand, a glint runs over it
+== Покачивание и блик
+
+Spins in the hand
+== Прокрут в руке
+
+Animation speed
+== Скорость анимаций
+
+Test swing
+== Проверить размах
+
+Test spin
+== Проверить прокрут
+
+Elegant strike: golden crescent and a cross of light
+== Изящный удар: золотой полумесяц и крест из света
+
+Crescent size
+== Размер полумесяца
+
+Axe strikes
+== Удары топора
+
+Diagonal
+== Диагональ
+
+Horizontal
+== Горизонт.
+
+Head bash
+== Головой
+
+Diagonal, diagonal, horizontal, diagonal, head bash; a pause starts over
+== Диагональ, диагональ, горизонтальный, диагональ, удар головой; пауза начинает заново
+
+A golden crescent from above
+== Золотой полумесяц сверху вниз
+
+A wide flat sweep round the tee
+== Широкий плоский взмах вокруг тее
+
+The axe head thrusts forward
+== Тычок головой топора вперёд
+
+Axe sounds: swing and hit
+== Звуки топора: взмах и попадание
+
+Axe sound volume
+== Громкость звуков топора
+
+Axe sounds of other players
+== Звуки топора у других игроков
+
+Instead of the hammer sounds
+== Вместо звуков молота
+
 Kagune hook
 == Кагуне вместо крюка
 
@@ -2956,3 +3028,342 @@ Fire whip color
 
 Mega strike only when the hammer hits a tee
 == Мега-удар только при попадании по тее
+
+Filters
+== Фильтры
+
+The game picture only, OpenGL renderer; applied top to bottom
+== Только картинка игры, рендер OpenGL; применяются сверху вниз
+
+Gamma
+== Гамма
+
+Hue shift
+== Сдвиг цвета
+
+Turn
+== Поворот
+
+Black and white
+== Чёрно-белое
+
+Contrast
+== Контраст
+
+Sepia
+== Сепия
+
+Negative
+== Негатив
+
+Thermal vision
+== Тепловизор
+
+Night vision
+== Ночное зрение
+
+Noise
+== Шум
+
+Waves
+== Волны
+
+Speed
+== Скорость
+
+Blur
+== Размытие
+
+Posterize
+== Постеризация
+
+Shades
+== Оттенков
+
+Cartoon
+== Мультик
+
+Outlines
+== Контуры
+
+Outline width
+== Толщина контуров
+
+Outline color
+== Цвет контуров
+
+Width
+== Толщина
+
+Only the lines
+== Только линии
+
+Line color
+== Цвет линий
+
+Pixel art
+== Пиксель-арт
+
+Pixel size
+== Размер пикселя
+
+Glitch
+== Глитч
+
+How often
+== Как часто
+
+VHS tape
+== Видеокассета
+
+Old TV
+== Старый телевизор
+
+Scanlines
+== Полосы
+
+Screen curve
+== Выпуклость
+
+Color dots
+== Цветные точки
+
+Fisheye
+== Рыбий глаз
+
+Drunk
+== Пьяный
+
+Tilt-shift
+== Тилт-шифт
+
+Sharp line height
+== Где резко
+
+Sharp band
+== Ширина резкой полосы
+
+Oil painting
+== Масляная живопись
+
+Brush size
+== Размер кисти
+
+Comic dots
+== Комикс
+
+Dot size
+== Размер точек
+
+Letter size
+== Размер букв
+
+Picture colors
+== Цвета картинки
+
+Game Boy
+== Game Boy
+
+8-bit
+== 8-бит
+
+Split toning
+== Два тона
+
+Shadow hue
+== Цвет теней
+
+Light hue
+== Цвет света
+
+Horror
+== Хоррор
+
+Heartbeat
+== Стук сердца
+
+Swirl
+== Воронка
+
+Dream
+== Сон
+
+Pencil sketch
+== Набросок карандашом
+
+Hatching
+== Штриховка
+
+Watercolor
+== Акварель
+
+Hexagons
+== Соты
+
+Dark edges
+== Тёмные края
+
+Stained glass
+== Витраж
+
+Piece size
+== Размер стёкол
+
+Lead lines
+== Перемычки
+
+Cinema
+== Кино
+
+Neon
+== Неон
+
+Retro
+== Ретро
+
+Old game
+== Старая игра
+
+Sketch
+== Набросок
+
+All off
+== Выключить все
+
+Save 1
+== Сохр. 1
+
+Load 1
+== Загр. 1
+
+Save 2
+== Сохр. 2
+
+Load 2
+== Загр. 2
+
+Save 3
+== Сохр. 3
+
+Load 3
+== Загр. 3
+
+Paste
+== Вставить
+
+Load on the video card
+== Нагрузка на видеокарту
+
+none
+== нет
+
+light
+== лёгкая
+
+medium
+== средняя
+
+heavy, FPS may drop
+== тяжёлая, FPS может просесть
+
+Map background
+== Фон карты
+
+Own picture instead of the map background
+== Своя картинка вместо фона карты
+
+Choose a file
+== Выбрать файл
+
+Open the folder
+== Открыть папку
+
+Refresh the list
+== Обновить список
+
+Put pictures into chainsaw/map_backgrounds and pick one below
+== Кидай картинки в chainsaw/map_backgrounds и выбирай ниже
+
+Moves with the camera
+== Движение за камерой
+
+Brightness
+== Яркость
+
+The folder is empty
+== Папка пустая
+
+Light and shadows
+== Свет и тени
+
+The map gets dark, lamps light it, blocks throw shadows
+== Карта темнеет, её освещают лампы, блоки дают тени
+
+OpenGL 3.3 only. Heavy: lower the quality on a weak PC
+== Только OpenGL 3.3. Эффект тяжёлый: на слабом ПК снизь качество
+
+Light quality (0 low - 3 ultra)
+== Качество света (0 низкое - 3 ультра)
+
+Darkness
+== Темнота
+
+Brightness of the light
+== Яркость света
+
+Rays in the air
+== Лучи в воздухе
+
+Specks of dust
+== Пылинки
+
+Dark corners of the screen
+== Тёмные углы экрана
+
+Tees carry a light
+== Тее светятся
+
+Other tees too
+== Чужие тее тоже
+
+Light in the colour of the tee
+== Свет цвета тее
+
+Reach in blocks
+== Дальность в блоках
+
+Colour of the tee light
+== Цвет света тее
+
+Light from the sky
+== Свет с неба
+
+Angle of the rays
+== Наклон лучей
+
+Free blocks up to the sky
+== Свободных блоков до неба
+
+Colour of the sky light
+== Цвет света с неба
+
+Own lamps are lit
+== Свои лампы горят
+
+Hang a lamp here
+== Повесить лампу здесь
+
+Remove the nearest
+== Убрать ближайшую
+
+Remove all
+== Убрать все
+
+Lamps on this map
+== Ламп на этой карте
+
+Reach of the lamps in blocks
+== Дальность ламп в блоках
+
+Colour of the lamps
+== Цвет ламп

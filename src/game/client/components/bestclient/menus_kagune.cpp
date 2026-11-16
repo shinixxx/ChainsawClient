@@ -33,7 +33,7 @@ void CMenus::RenderSettingsChainsawKagune(CUIRect &Column)
 	};
 
 	const bool On = g_Config.m_BcKagune != 0;
-	const int Rows = On ? 16 : 2; // switch, others, pistol, kind title + buttons, 5 sliders, color, attacks title + buttons, blood, blood amount, hint | switch, hint
+	const int Rows = On ? 17 : 2; // switch, others, pistol, hook, kind title + buttons, 5 sliders, color, attacks title + buttons, blood, blood amount, hint | switch, hint
 
 	// the same block as the other ChainsawClient blocks: a title with a reset button
 	const float BlockPadding = MARGIN_BETWEEN_VIEWS * 0.6666f;
@@ -65,6 +65,7 @@ void CMenus::RenderSettingsChainsawKagune(CUIRect &Column)
 		g_Config.m_BcKaguneGun = DefaultConfig::BcKaguneGun;
 		g_Config.m_BcKaguneBlood = DefaultConfig::BcKaguneBlood;
 		g_Config.m_BcKaguneBloodAmount = DefaultConfig::BcKaguneBloodAmount;
+		g_Config.m_BcKaguneHook = DefaultConfig::BcKaguneHook;
 	}
 	GameClient()->m_Tooltips.DoToolTip(&s_Reset, &ResetButton, BcLocalize("Reset to defaults"));
 	Ui()->DoLabel(&Title, BcLocalize("Kagune"), HEADLINE_FONT_SIZE, TEXTALIGN_ML);
@@ -74,6 +75,8 @@ void CMenus::RenderSettingsChainsawKagune(CUIRect &Column)
 	{
 		RowCheck(Block, &g_Config.m_BcKaguneOthers, BcLocalize("Kagune for other players"));
 		RowCheck(Block, &g_Config.m_BcKaguneGun, BcLocalize("Keep the kagune with the pistol"));
+		// off = the usual hook chain (with many tentacles the hook is easier to aim)
+		RowCheck(Block, &g_Config.m_BcKaguneHook, BcLocalize("Tentacles instead of the hook"));
 
 		// the kind of kagune (examples-of-kagune)
 		{
